@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenTTD · Administración</title>
+<style>
+  :root { --bg:#f4f5f7; --card:#fff; --fg:#1d2330; --muted:#667085; --line:#e3e6eb; --accent:#2f6fde; --ok:#1f9d55; --bad:#d64545; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#14171c; --card:#1d2128; --fg:#e7e9ee; --muted:#9aa3b2; --line:#2c323c; --accent:#5b8ff0; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.45 system-ui, sans-serif; background:var(--bg); color:var(--fg); }
+  header { display:flex; align-items:center; gap:12px; padding:14px 20px; border-bottom:1px solid var(--line); background:var(--card); flex-wrap:wrap; }
+  header h1 { font-size:17px; margin:0; flex:1; }
+  .pill { padding:3px 10px; border-radius:99px; font-size:12px; font-weight:600; color:#fff; background:var(--muted); }
+  .pill.on { background:var(--ok); } .pill.off { background:var(--bad); }
+  main { display:grid; grid-template-columns:repeat(auto-fit, minmax(340px, 1fr)); gap:16px; padding:16px; max-width:1300px; margin:0 auto; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; min-width:0; }
+  section.wide { grid-column:1 / -1; }
+  h2 { font-size:14px; margin:0 0 10px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  button { font:inherit; padding:6px 12px; border-radius:6px; border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.danger { color:var(--bad); }
+  button:disabled { opacity:.45; cursor:default; }
+  input, select { font:inherit; padding:6px 8px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--fg); width:100%; }
+  label { display:block; font-size:12px; color:var(--muted); margin-bottom:8px; }
+  label input, label select { margin-top:3px; }
+  label.check { display:flex; gap:8px; align-items:flex-start; color:var(--fg); font-size:13px; }
+  label.check input { width:auto; margin:2px 0 0; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:6px 4px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:500; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .muted { color:var(--muted); }
+  ul.plain { list-style:none; padding:0; margin:8px 0; }
+  ul.plain li { display:flex; justify-content:space-between; align-items:center; padding:4px 0; border-bottom:1px solid var(--line); }
+  pre#log { height:260px; overflow:auto; background:var(--bg); padding:8px; border-radius:6px; font-size:12px; margin:0 0 8px; white-space:pre-wrap; }
+  #toast { position:fixed; bottom:16px; right:16px; background:var(--fg); color:var(--bg); padding:8px 14px; border-radius:6px; display:none; max-width:80vw; }
+  .big { font-size:22px; font-weight:600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>OpenTTD · Administración</h1>
+  <span id="state" class="pill">…</span>
+  <a href="/" target="_blank">Abrir cliente web</a>
+</header>
+<main>
+  <section>
+    <h2>Partida</h2>
+    <div class="big" id="date">—</div>
+    <p class="muted" id="speed"></p>
+    <div class="row">
+      <button class="primary" id="btnStart">Reanudar</button>
+      <button id="btnNew">Nueva partida</button>
+      <button class="danger" id="btnStop">Detener</button>
+      <button id="btnPause">Pausar</button>
+      <button id="btnUnpause">Continuar</button>
+      <button id="btnSave">Guardar</button>
+    </div>
+    <h2 style="margin-top:16px">Partidas guardadas</h2>
+    <ul class="plain" id="saves"></ul>
+  </section>
+
+  <section>
+    <h2>Jugadores</h2>
+    <label class="check"><input type="checkbox" id="whitelist"> Solo permitir los jugadores de la lista (expulsa al resto por nombre)</label>
+    <form class="row" id="addPlayer"><input id="newPlayer" placeholder="Nombre del jugador" style="flex:1"><button>Añadir</button></form>
+    <ul class="plain" id="players"></ul>
+    <h2 style="margin-top:16px">Conectados ahora</h2>
+    <table><thead><tr><th>#</th><th>Nombre</th><th>Empresa</th><th>IP</th><th></th></tr></thead><tbody id="clients"></tbody></table>
+  </section>
+
+  <section class="wide">
+    <h2>Empresas</h2>
+    <table><thead><tr><th>#</th><th>Nombre</th><th>Fundada</th><th class="num">Dinero</th><th class="num">Préstamo</th><th class="num">Valor</th><th class="num">Trenes</th><th class="num">Carretera</th><th class="num">Aviones</th><th class="num">Barcos</th></tr></thead><tbody id="companies"></tbody></table>
+  </section>
+
+  <section>
+    <h2>Configuración</h2>
+    <form id="settings">
+      <label>Nombre del servidor <input name="server_name"></label>
+      <label>Contraseña para entrar (vacía = sin contraseña) <input name="server_password"></label>
+      <div class="grid2">
+        <label>Minutos reales por año de juego <input name="minutes_per_calendar_year" type="number" min="1" max="10080"></label>
+        <label>Año de inicio <input name="starting_year" type="number" min="1" max="5000000"></label>
+        <label>Ancho del mapa
+          <select name="map_x"><option value="6">64</option><option value="7">128</option><option value="8">256</option><option value="9">512</option><option value="10">1024</option><option value="11">2048</option><option value="12">4096</option></select></label>
+        <label>Alto del mapa
+          <select name="map_y"><option value="6">64</option><option value="7">128</option><option value="8">256</option><option value="9">512</option><option value="10">1024</option><option value="11">2048</option><option value="12">4096</option></select></label>
+        <label>Clima
+          <select name="landscape"><option value="temperate">Templado</option><option value="arctic">Subártico</option><option value="tropic">Subtropical</option><option value="toyland">Juguetes</option></select></label>
+        <label>Máximo de empresas <input name="max_companies" type="number" min="1" max="15"></label>
+      </div>
+      <p class="muted">1440 = un año de juego por día real. Los cambios se aplican al empezar una nueva partida o al reanudar (contraseña y nombre).</p>
+      <button class="primary">Guardar configuración</button>
+    </form>
+  </section>
+
+  <section>
+    <h2>Consola</h2>
+    <pre id="log"></pre>
+    <form class="row" id="cmdForm"><input id="cmd" placeholder="Comando (help, companies, setting …)" style="flex:1"><button>Enviar</button></form>
+    <form class="row" id="sayForm" style="margin-top:8px"><input id="say" placeholder="Mensaje de chat a todos" style="flex:1"><button>Decir</button></form>
+  </section>
+</main>
+<div id="toast"></div>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const money = (n) => '£' + n.toLocaleString('es-ES');
+let status = null;
+let settingsLoaded = false;
+
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.style.display = 'block';
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => (t.style.display = 'none'), 3500);
+}
+
+async function call(method, url, body) {
+  const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || r.statusText);
+  return data;
+}
+const post = (url, body) => call('POST', url, body || {}).catch((e) => { toast(e.message); throw e; });
+
+function render() {
+  const s = status;
+  $('#state').textContent = s.running ? 'En marcha' : 'Detenido';
+  $('#state').className = 'pill ' + (s.running ? 'on' : 'off');
+  $('#date').textContent = s.date || (s.running ? 'Cargando…' : 'Servidor detenido');
+  const m = s.settings.minutes_per_calendar_year;
+  $('#speed').textContent = `1 año de juego = ${m} min reales (${(m / 60).toFixed(1)} h). 1 día de juego ≈ ${(m * 60 / 365).toFixed(0)} s.`;
+  $('#btnStart').disabled = s.running || !s.saves.some((x) => x.name === 'last.sav');
+  for (const id of ['#btnStop', '#btnPause', '#btnUnpause', '#btnSave']) $(id).disabled = !s.running;
+
+  $('#saves').innerHTML = s.saves.map((x) => `<li><span>${esc(x.name)} <span class="muted">${new Date(x.mtime).toLocaleString('es-ES')}</span></span>
+    <button data-load="${esc(x.name)}" ${s.running ? 'disabled' : ''}>Cargar</button></li>`).join('') || '<li class="muted">Ninguna todavía</li>';
+
+  $('#whitelist').checked = s.settings.whitelist_enabled;
+  $('#players').innerHTML = s.settings.players.map((p) => `<li><span>${esc(p)}</span><button class="danger" data-remove="${esc(p)}">Quitar</button></li>`).join('')
+    || '<li class="muted">Lista vacía</li>';
+
+  $('#clients').innerHTML = s.clients.map((c) => `<tr><td>${c.id}</td><td>${esc(c.name)}</td><td>${c.company === 255 ? 'Espectador' : c.company}</td><td>${esc(c.ip)}</td>
+    <td><button class="danger" data-kick="${c.id}">Expulsar</button></td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nadie conectado</td></tr>';
+
+  $('#companies').innerHTML = s.companies.map((c) => `<tr><td>${c.id}</td><td>${esc(c.name)}</td><td>${c.founded}</td>
+    <td class="num">${money(c.money)}</td><td class="num">${money(c.loan)}</td><td class="num">${money(c.value)}</td>
+    <td class="num">${c.vehicles.trains}</td><td class="num">${c.vehicles.road}</td><td class="num">${c.vehicles.planes}</td><td class="num">${c.vehicles.ships}</td></tr>`).join('')
+    || '<tr><td colspan="10" class="muted">Sin empresas</td></tr>';
+
+  if (!settingsLoaded) {
+    for (const el of $('#settings').elements) if (el.name) el.value = s.settings[el.name];
+    settingsLoaded = true;
+  }
+}
+
+async function refresh() {
+  try {
+    status = await call('GET', '/api/status');
+    render();
+    const { log } = await call('GET', '/api/log');
+    const pre = $('#log'); const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 5;
+    pre.textContent = log.join('\n');
+    if (atBottom) pre.scrollTop = pre.scrollHeight;
+  } catch (e) { toast(e.message); }
+}
+
+$('#btnStart').onclick = () => post('/api/start', { save: 'last.sav' }).then(refresh);
+$('#btnNew').onclick = () => confirm('¿Empezar una partida nueva? La actual se guarda como last.sav y luego se sustituye.') && post('/api/newgame').then(refresh);
+$('#btnStop').onclick = () => post('/api/stop').then(refresh);
+$('#btnPause').onclick = () => post('/api/pause').then(() => toast('Pausado'));
+$('#btnUnpause').onclick = () => post('/api/unpause').then(() => toast('En marcha'));
+$('#btnSave').onclick = () => { const name = prompt('Nombre de la partida', 'manual'); if (name) post('/api/save', { name }).then(() => { toast('Guardada'); refresh(); }); };
+
+document.addEventListener('click', (e) => {
+  const d = e.target.dataset || {};
+  if (d.load) post('/api/start', { save: d.load }).then(refresh);
+  if (d.kick) post('/api/kick', { id: Number(d.kick) }).then(refresh);
+  if (d.remove) post('/api/settings', { players: status.settings.players.filter((p) => p !== d.remove) }).then(refresh);
+});
+$('#whitelist').onchange = (e) => post('/api/settings', { whitelist_enabled: e.target.checked }).then(refresh);
+$('#addPlayer').onsubmit = (e) => {
+  e.preventDefault();
+  const name = $('#newPlayer').value.trim();
+  if (name) post('/api/settings', { players: [...status.settings.players, name] }).then(() => { $('#newPlayer').value = ''; refresh(); });
+};
+$('#settings').onsubmit = (e) => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(e.target));
+  post('/api/settings', data).then(() => { toast('Configuración guardada'); settingsLoaded = false; refresh(); });
+};
+$('#cmdForm').onsubmit = (e) => {
+  e.preventDefault();
+  const command = $('#cmd').value.trim();
+  if (command) post('/api/command', { command }).then(() => { $('#cmd').value = ''; refresh(); });
+};
+$('#sayForm').onsubmit = (e) => {
+  e.preventDefault();
+  const message = $('#say').value.trim();
+  if (message) post('/api/say', { message }).then(() => { $('#say').value = ''; refresh(); });
+};
+
+refresh();
+setInterval(refresh, 4000);
+</script>
+</body>
+</html>
