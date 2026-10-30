@@ -29,6 +29,8 @@
   label.check { display:flex; gap:8px; align-items:flex-start; color:var(--fg); font-size:13px; }
   label.check input { width:auto; margin:2px 0 0; }
   .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }
+  .grid3 { display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:0 12px; }
+  h3 { font-size:13px; margin:12px 0 8px; color:var(--muted); }
   .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
   table { width:100%; border-collapse:collapse; font-size:13px; }
   th, td { text-align:left; padding:6px 4px; border-bottom:1px solid var(--line); }
@@ -104,7 +106,7 @@
     </div>
   </section>
 
-  <section>
+  <section class="wide2">
     <h2>Configuración</h2>
     <form id="settings">
       <label>Nombre del servidor <input name="server_name"></label>
@@ -119,6 +121,23 @@
         <label>Clima
           <select name="landscape"><option value="temperate">Templado</option><option value="arctic">Subártico</option><option value="tropic">Subtropical</option><option value="toyland">Juguetes</option></select></label>
         <label>Máximo de empresas <input name="max_companies" type="number" min="1" max="15"></label>
+      </div>
+
+      <h3>Terreno (se aplica al empezar una nueva partida)</h3>
+      <div class="grid3">
+        <label>Cantidad de agua <select name="sea_level"><option value="0">Muy poca</option><option value="1">Poca</option><option value="2">Media</option><option value="3">Mucha</option><option value="4">Personalizada (%)</option></select></label>
+        <label>% de agua (si «Personalizada») <input name="custom_sea_level" type="number" min="1" max="90"></label>
+        <label>Ríos <select name="rivers"><option value="0">Ninguno</option><option value="1">Pocos</option><option value="2">Moderados</option><option value="3">Muchos</option></select></label>
+        <label>Relieve <select name="terrain_type"><option value="0">Muy llano</option><option value="1">Llano</option><option value="2">Ondulado</option><option value="3">Montañoso</option><option value="4">Alpino</option></select></label>
+        <label>Rugosidad <select name="smoothness"><option value="0">Muy suave</option><option value="1">Suave</option><option value="2">Rugoso</option><option value="3">Muy rugoso</option></select></label>
+        <label>Variedad del terreno <select name="variety"><option value="0">Ninguna</option><option value="1">Muy baja</option><option value="2">Baja</option><option value="3">Media</option><option value="4">Alta</option><option value="5">Muy alta</option></select></label>
+        <label>Generador de terreno <select name="land_generator"><option value="0">Original</option><option value="1">TerraGenesis</option></select></label>
+        <label>Nieve, % (clima subártico) <input name="snow_coverage" type="number" min="0" max="100"></label>
+        <label>Desierto, % (clima subtropical) <input name="desert_coverage" type="number" min="0" max="100"></label>
+        <label>Pueblos <select name="towns"><option value="0">Muy pocos</option><option value="1">Pocos</option><option value="2">Normal</option><option value="3">Muchos</option><option value="4">Personalizado</option></select></label>
+        <label>Nº de pueblos (si «Personalizado») <input name="custom_towns" type="number" min="1" max="5000"></label>
+        <label>Industrias <select name="industries"><option value="0">Ninguna al inicio</option><option value="1">Mínima</option><option value="2">Muy baja</option><option value="3">Baja</option><option value="4">Normal</option><option value="5">Alta</option></select></label>
+        <label>Semilla (vacía = aleatoria) <input name="seed" type="number" min="0" max="4294967294" placeholder="aleatoria"></label>
       </div>
       <p class="muted">1440 = un año de juego por día real. Los cambios se aplican al empezar una nueva partida o al reanudar (contraseña y nombre).</p>
       <button class="primary">Guardar configuración</button>

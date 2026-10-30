@@ -7,7 +7,25 @@ import { EventEmitter } from 'node:events';
 import { parseIni, stringifyIni } from './ini.js';
 import { renderMap } from './gamemap.js';
 
+// Ajustes de generación del mapa: clave del panel -> [sección del .cfg, nombre, mín, máx, defecto de OpenTTD].
+export const MAPGEN = {
+  sea_level: ['difficulty', 'quantity_sea_lakes', 0, 4, 0], // 0 muy poca agua ... 3 mucha, 4 personalizada
+  custom_sea_level: ['game_creation', 'custom_sea_level', 1, 90, 20], // % de agua si sea_level = 4
+  rivers: ['game_creation', 'amount_of_rivers', 0, 3, 2],
+  terrain_type: ['difficulty', 'terrain_type', 0, 4, 1], // 0 muy llano ... 4 alpino
+  smoothness: ['game_creation', 'tgen_smoothness', 0, 3, 1],
+  variety: ['game_creation', 'variety', 0, 5, 0],
+  land_generator: ['game_creation', 'land_generator', 0, 1, 1], // 0 original, 1 TerraGenesis
+  towns: ['difficulty', 'number_towns', 0, 4, 2], // 4 = personalizado
+  custom_towns: ['game_creation', 'custom_town_number', 1, 5000, 10],
+  industries: ['difficulty', 'industry_density', 0, 5, 4],
+  snow_coverage: ['game_creation', 'snow_coverage', 0, 100, 40],
+  desert_coverage: ['game_creation', 'desert_coverage', 0, 100, 50],
+};
+
 export const DEFAULT_SETTINGS = {
+  ...Object.fromEntries(Object.entries(MAPGEN).map(([k, v]) => [k, v[4]])),
+  seed: null, // null = aleatoria
   server_name: 'OpenTTD Slow Time',
   server_password: '',
   minutes_per_calendar_year: 1440,
@@ -18,6 +36,8 @@ export const DEFAULT_SETTINGS = {
   max_companies: 15,
   actions_per_day: 100,
 };
+
+const s_seed = (s) => s.seed !== null && s.seed !== undefined;
 
 export class Game extends EventEmitter {
   constructor({ root, players }) {
@@ -64,6 +84,12 @@ export class Game extends EventEmitter {
     s.minutes_per_calendar_year = Math.min(10080, Math.max(1, s.minutes_per_calendar_year | 0));
     s.map_x = Math.min(12, Math.max(6, s.map_x | 0));
     s.map_y = Math.min(12, Math.max(6, s.map_y | 0));
+    for (const [k, [, , min, max, def]] of Object.entries(MAPGEN)) {
+      const n = Math.round(Number(s[k]));
+      s[k] = Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
+    }
+    // Semilla: vacía o 0 = aleatoria.
+    s.seed = s.seed === '' || s.seed == null || Number(s.seed) <= 0 ? null : Math.min(4294967294, Math.floor(Number(s.seed)));
     s.max_companies = Math.min(15, Math.max(1, s.max_companies | 0));
     s.actions_per_day = Math.min(100000, Math.max(0, s.actions_per_day | 0)); // 0 = sin límite
     const oldMax = this.settings.actions_per_day;
@@ -89,6 +115,7 @@ export class Game extends EventEmitter {
       landscape: s.landscape,
     };
     cfg.network = { ...cfg.network, max_companies: s.max_companies };
+    for (const [k, [section, name]] of Object.entries(MAPGEN)) cfg[section] = { ...cfg[section], [name]: s[k] };
     fs.writeFileSync(path.join(this.dataDir, 'openttd.cfg'), stringifyIni(cfg));
     fs.writeFileSync(path.join(this.dataDir, 'private.cfg'), stringifyIni({ network: { server_name: s.server_name } }));
     fs.writeFileSync(path.join(this.dataDir, 'secrets.cfg'), stringifyIni({ network: { server_password: s.server_password } }), { mode: 0o600 });
@@ -128,6 +155,7 @@ export class Game extends EventEmitter {
     // GAME_PUBLIC=1 lo abre a todas las interfaces.
     const bind = process.env.GAME_PUBLIC ? '-D' : `-D127.0.0.1:${process.env.GAME_PORT || 3979}`;
     const args = [bind, '-c', path.join(this.dataDir, 'openttd.cfg'), '-x'];
+    if (s_seed(this.settings) && !save) args.push('-G', String(this.settings.seed));
     if (save) {
       const file = path.join(this.dataDir, 'save', path.normalize(save));
       if (!file.startsWith(path.join(this.dataDir, 'save') + path.sep) || !fs.existsSync(file)) {
