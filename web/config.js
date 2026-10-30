@@ -11,6 +11,12 @@
     return null; // resto: comportamiento por defecto
   };
 
+  // Se oculta el aviso "las partidas se guardan en el IndexedDB del navegador": aquí el juego
+  // es siempre el del servidor y no se guardan partidas en el navegador.
+  const style = document.createElement('style');
+  style.textContent = '#overlay, #filesystem { display: none !important; }';
+  document.head.appendChild(style);
+
   // Sin menú principal: el juego se conecta directamente al servidor al arrancar.
   // openttd_join_company = 255 (espectador) si la cuenta ya tiene empresa: el servidor la mueve a ella.
   const company = window.openttd_join_company == null ? '' : `#${window.openttd_join_company}`;
