@@ -9,6 +9,7 @@ import crypto from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import { Game } from './game.js';
 import { Users } from './users.js';
+import { Chat, gameLine } from './chat.js';
 import { COMPANY_COLOURS } from './gamemap.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -30,6 +31,7 @@ const MIME = {
 // --- Cuentas y sesiones --------------------------------------------------------
 
 const users = new Users(path.join(ROOT, 'runtime', 'users.json'));
+const chat = new Chat(path.join(ROOT, 'runtime', 'chat.json'));
 const COOKIE = 'ottd_session';
 
 function sessionToken(req) {
@@ -59,6 +61,20 @@ async function handleAuth(req, res, pathname) {
     if (!user) return json(401, { error: 'Login required' });
     const max = game.settings.actions_per_day;
     json(200, { user, max: max > 0 ? max : null, actions: game.actionsLeft(user), nextRestore: game.nextRestore() }, { 'Cache-Control': 'no-store' });
+  } else if (pathname === '/auth/chat' && req.method === 'POST') {
+    const user = currentUser(req);
+    if (!user) return json(401, { error: 'Inicia sesión para escribir' });
+    try {
+      const msg = chat.add(user, (await readJson(req)).text);
+      // Dentro del juego: a los jugadores conectados ahora; el resto lo recibe al entrar.
+      if (game.running) {
+        await game.command(`say "${gameLine(msg)}"`).catch(() => {});
+        for (const c of game.clients) if (users.has(c.name)) users.setChatSeen(c.name, msg.id);
+      }
+      json(200, { ok: true, message: msg });
+    } catch (e) {
+      json(400, { error: e.message });
+    }
   } else if (pathname === '/auth/logout' && req.method === 'POST') {
     users.logout(sessionToken(req));
     json(200, { ok: true }, { 'Set-Cookie': `${COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0` });
@@ -112,6 +128,11 @@ function serveStatic(req, res) {
   if (rel.endsWith('/')) rel += 'index.html';
   if (rel === '/info.json') {
     res.writeHead(200, { 'Content-Type': MIME['.json'], 'Cache-Control': 'no-cache' }).end(JSON.stringify(publicInfo()));
+    return;
+  }
+  if (rel === '/chat.json') {
+    const since = Number(url.searchParams.get('since')) || 0;
+    res.writeHead(200, { 'Content-Type': MIME['.json'], 'Cache-Control': 'no-cache' }).end(JSON.stringify({ messages: chat.since(since, since ? 200 : 50) }));
     return;
   }
   if (rel === '/map.png') {
@@ -205,6 +226,12 @@ const game = new Game({
     setCompany: (name, id) => users.setCompany(name, id),
     actionsOf: (name) => users.actionsOf(name),
     setActions: (name, n) => users.setActions(name, n),
+    // Mensajes posteriores al último que vio este jugador (máx. 10), marcándolos como entregados.
+    pendingChat: (name) => {
+      const seen = users.chatSeenOf(name);
+      users.setChatSeen(name, chat.lastId);
+      return seen === null ? [] : chat.since(seen, 10).filter((m) => m.user.toLowerCase() !== name.toLowerCase()).map(gameLine);
+    },
     restoreAllActions: () => users.restoreAllActions(),
     adjustActions: (a, b) => users.adjustActions(a, b),
   },

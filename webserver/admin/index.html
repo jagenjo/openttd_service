@@ -16,6 +16,8 @@
   main { display:grid; grid-template-columns:repeat(auto-fit, minmax(340px, 1fr)); gap:16px; padding:16px; max-width:1300px; margin:0 auto; }
   section { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; min-width:0; }
   section.wide { grid-column:1 / -1; }
+  section.wide2 { grid-column:span 2; }
+  @media (max-width:800px) { section.wide2 { grid-column:1 / -1; } }
   h2 { font-size:14px; margin:0 0 10px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
   button { font:inherit; padding:6px 12px; border-radius:6px; border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; }
   button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
@@ -68,7 +70,7 @@
     <ul class="plain" id="saves" style="max-height:260px;overflow-y:auto;padding-right:6px"></ul>
   </section>
 
-  <section>
+  <section class="wide2">
     <h2>Cuentas de jugador</h2>
     <p class="muted">Solo pueden jugar los usuarios de esta lista: entran desde el cliente web con su usuario y contraseña, y ese es su nombre en el juego.</p>
     <form class="row" id="addUser"><input id="newUser" placeholder="Usuario" maxlength="24" style="flex:1" autocomplete="off"><input id="newPass" type="text" placeholder="Contraseña (mín. 6)" style="flex:1" autocomplete="off"><button>Crear / cambiar</button></form>
@@ -80,9 +82,7 @@
     </form>
     <div class="row" style="margin-top:8px"><button id="btnRestore" class="danger">Restablecer las acciones de todos ahora</button></div>
     <p class="muted">Se restablecen solas cada día a las 0:00 (hora del servidor). Si cambias el máximo, a quien ya haya gastado acciones se le suma o resta la diferencia.</p>
-    <h2 style="margin-top:16px">Conectados ahora</h2>
-    <table><thead><tr><th>#</th><th>Nombre</th><th>Empresa</th><th>IP</th><th></th></tr></thead><tbody id="clients"></tbody></table>
-  </section>
+</section>
 
   <section class="wide">
     <h2>Empresas</h2>
@@ -182,15 +182,17 @@ function render() {
     }).join('');
     // Si la empresa vinculada no está en la lista (servidor parado), se conserva el valor.
     const stale = u.company && !s.companies.some((c) => c.id === u.company) ? `<option value="${u.company}" selected>${u.company} · (servidor parado)</option>` : '';
-    return `<li style="gap:8px;flex-wrap:wrap"><span style="flex:1">${esc(u.name)} <span class="muted">${online.includes(u.name.toLowerCase()) ? '· conectado' : ''}${status.settings.actions_per_day > 0 ? ` · acciones ${u.actions ?? status.settings.actions_per_day}/${status.settings.actions_per_day}` : ''}</span></span>
+    const cl = s.clients.find((c) => c.name.toLowerCase() === u.name.toLowerCase());
+    return `<li style="gap:8px;flex-wrap:wrap"><span style="flex:1"><span style="color:${cl ? 'var(--ok)' : 'var(--muted)'}" title="${cl ? 'Conectado' : 'Desconectado'}">●</span> ${esc(u.name)} <span class="muted">${cl ? `· en juego (${cl.company === 255 ? 'espectador' : `empresa ${cl.company}`}, ${esc(cl.ip)})` : online.includes(u.name.toLowerCase()) ? '· conectando…' : ''}${status.settings.actions_per_day > 0 ? ` · acciones ${u.actions ?? status.settings.actions_per_day}/${status.settings.actions_per_day}` : ''}</span></span>
       <select data-usercompany="${esc(u.name)}" style="width:auto" title="Empresa de este jugador">${opts}${stale}</select>
+      ${cl ? `<button class="danger" data-kick="${cl.id}">Expulsar</button>` : ''}
       <button class="danger" data-deluser="${esc(u.name)}">Borrar</button></li>`;
   }).join('')
+    // Conectados que no coinciden con ninguna cuenta (el servidor los expulsa en unos segundos).
+    + s.clients.filter((c) => !users.some((u) => u.name.toLowerCase() === c.name.toLowerCase()))
+      .map((c) => `<li><span><span style="color:var(--bad)">●</span> ${esc(c.name)} <span class="muted">· sin cuenta (${esc(c.ip)})</span></span><button class="danger" data-kick="${c.id}">Expulsar</button></li>`).join('')
     || '<li class="muted">Sin cuentas: nadie puede entrar</li>';
   }
-
-  $('#clients').innerHTML = s.clients.map((c) => `<tr><td>${c.id}</td><td>${esc(c.name)}</td><td>${c.company === 255 ? 'Espectador' : c.company}</td><td>${esc(c.ip)}</td>
-    <td><button class="danger" data-kick="${c.id}">Expulsar</button></td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nadie conectado</td></tr>';
 
   $('#companies').innerHTML = s.companies.map((c) => `<tr><td>${c.id}</td><td>${esc(c.name)}</td><td>${c.founded}</td>
     <td class="num">${money(c.money)}</td><td class="num">${money(c.loan)}</td><td class="num">${money(c.value)}</td>

@@ -41,7 +41,7 @@ export class Users {
     if (String(password || '').length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres');
     const salt = crypto.randomBytes(16).toString('hex');
     const prev = this.users[this.key(name)];
-    this.users[this.key(name)] = { name: prev?.name ?? name, salt, hash: hash(password, salt), created: prev?.created ?? Date.now(), ...(prev?.company ? { company: prev.company } : {}), ...(prev?.actions != null ? { actions: prev.actions } : {}) };
+    this.users[this.key(name)] = { name: prev?.name ?? name, salt, hash: hash(password, salt), created: prev?.created ?? Date.now(), ...(prev?.company ? { company: prev.company } : {}), ...(prev?.actions != null ? { actions: prev.actions } : {}), ...(prev?.chatSeen != null ? { chatSeen: prev.chatSeen } : {}) };
     this.save();
     this.dropSessions(name);
   }
@@ -94,6 +94,18 @@ export class Users {
       if (oldMax <= 0 || newMax <= 0) delete u.actions;
       else u.actions = Math.min(newMax, Math.max(0, u.actions + newMax - oldMax));
     }
+    this.save();
+  }
+
+  // Último mensaje de chat entregado dentro del juego a esta cuenta (null = ninguno).
+  chatSeenOf(name) {
+    return this.users[this.key(name)]?.chatSeen ?? null;
+  }
+
+  setChatSeen(name, id) {
+    const u = this.users[this.key(name)];
+    if (!u || u.chatSeen === id) return;
+    u.chatSeen = id;
     this.save();
   }
 

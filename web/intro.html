@@ -78,6 +78,17 @@
   </section>
 
   <section class="wide">
+    <h2>Mensajes <span class="muted" style="text-transform:none;letter-spacing:0">· los jugadores conectados los ven también dentro del juego; el resto, al entrar</span></h2>
+    <div id="chat" style="height:220px;overflow-y:auto;background:#16202b;border:1px solid var(--line);padding:6px 10px"></div>
+    <form id="chatForm" style="display:flex;gap:8px;margin-top:8px">
+      <input id="chatText" maxlength="200" autocomplete="off" placeholder="Inicia sesión para escribir un mensaje" disabled
+        style="flex:1;padding:8px;background:#16202b;color:var(--fg);border:1px solid var(--line);font:inherit">
+      <button class="btn" disabled>Enviar</button>
+    </form>
+    <div id="chatError" style="color:#e06666;min-height:18px;margin-top:4px"></div>
+  </section>
+
+  <section class="wide">
     <h2>Clasificación de empresas</h2>
     <table>
       <thead><tr><th>#</th><th>Empresa</th><th>Jugador</th><th class="num">Valor</th><th class="num">Dinero</th><th class="num">Trenes</th><th class="num">Carretera</th><th class="num">Aviones</th><th class="num">Barcos</th></tr></thead>
@@ -180,10 +191,46 @@ async function refresh() {
 refresh();
 setInterval(refresh, 10000);
 
+// --- Mensajes ---
+let chatLast = 0;
+async function pollChat() {
+  try {
+    const { messages } = await (await fetch(`/chat.json?since=${chatLast}`, { cache: 'no-store' })).json();
+    if (!messages.length) return;
+    const box = $('#chat'), atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 8 || chatLast === 0;
+    for (const m of messages) {
+      chatLast = Math.max(chatLast, m.id);
+      const row = document.createElement('div');
+      const when = new Date(m.time).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+      row.innerHTML = `<span class="muted">${when}</span> <b></b> <span class="t"></span>`;
+      row.querySelector('b').textContent = m.user;
+      row.querySelector('.t').textContent = m.text;
+      box.appendChild(row);
+    }
+    if (atBottom) box.scrollTop = box.scrollHeight;
+  } catch { /* se reintenta */ }
+}
+pollChat();
+setInterval(pollChat, 4000);
+$('#chatForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const text = $('#chatText').value.trim();
+  if (!text) return;
+  $('#chatError').textContent = '';
+  const r = await fetch('/auth/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) { $('#chatError').textContent = data.error || r.statusText; return; }
+  $('#chatText').value = '';
+  pollChat();
+};
+
 // Si ya hay sesión, se saluda al jugador.
 fetch('/auth/me').then((r) => (r.ok ? r.json() : null)).then((me) => {
   if (!me) return;
   $('#who').textContent = `Sesión: ${me.user}`;
+  $('#chatText').disabled = false;
+  $('#chatText').placeholder = 'Escribe un mensaje para los demás jugadores…';
+  $('#chatForm button').disabled = false;
   $('#login').textContent = 'Cerrar sesión';
   $('#login').onclick = (e) => { e.preventDefault(); fetch('/auth/logout', { method: 'POST' }).then(() => location.reload()); };
 });

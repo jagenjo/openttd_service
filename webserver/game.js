@@ -38,6 +38,7 @@ export class Game extends EventEmitter {
     this.companies = [];
     this.date = null;
     this.actionsSynced = false;
+    this.knownClients = new Set();
     this.actionsFile = path.join(root, 'runtime', 'actions.json');
     this.mapFile = path.join(root, 'runtime', 'map.png');
     this.mapInfo = this.loadMapInfo();
@@ -370,6 +371,16 @@ export class Game extends EventEmitter {
     // Si una empresa vinculada ya no existe (quiebra), se desvincula.
     const exists = new Set(this.companies.map((c) => c.id));
     for (const u of P.accounts()) if (u.company !== null && !exists.has(u.company)) P.setCompany(u.name, null);
+
+    // Mensajes que se dejaron en la web mientras el jugador no estaba: se le entregan al entrar.
+    const current = new Set(this.clients.map((c) => c.id));
+    for (const c of this.clients) {
+      if (this.knownClients.has(c.id) || !P.isAllowed(c.name)) continue;
+      for (const line of P.pendingChat(c.name)) {
+        await this.command(`say_client ${c.id} "${line}"`).catch(() => {});
+      }
+    }
+    this.knownClients = current;
 
     for (const c of this.clients) {
       if (!P.isAllowed(c.name)) {
