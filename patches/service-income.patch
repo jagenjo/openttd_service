@@ -1,0 +1,94 @@
+diff --git a/src/economy.cpp b/src/economy.cpp
+index a82ccc1..1459536 100644
+--- a/src/economy.cpp
++++ b/src/economy.cpp
+@@ -962,7 +962,18 @@ Money GetPrice(Price index, uint cost_factor, const GRFFile *grf_file, int shift
+ 	return cost;
+ }
+ 
++static Money GetBaseTransportedGoodsIncome(uint num_pieces, uint dist, uint16_t transit_periods, CargoType cargo_type);
++
++/**
++ * Income for delivering cargo, scaled by the income percentage of the game (openttd-service).
++ * The setting is part of the savegame, so server and clients always agree.
++ */
+ Money GetTransportedGoodsIncome(uint num_pieces, uint dist, uint16_t transit_periods, CargoType cargo_type)
++{
++	return GetBaseTransportedGoodsIncome(num_pieces, dist, transit_periods, cargo_type) * _settings_game.economy.income_percent / 100;
++}
++
++static Money GetBaseTransportedGoodsIncome(uint num_pieces, uint dist, uint16_t transit_periods, CargoType cargo_type)
+ {
+ 	const CargoSpec *cs = CargoSpec::Get(cargo_type);
+ 	if (!cs->IsValid()) {
+diff --git a/src/lang/english.txt b/src/lang/english.txt
+index 0b32a4a..663c767 100644
+--- a/src/lang/english.txt
++++ b/src/lang/english.txt
+@@ -1971,6 +1971,8 @@ STR_CONFIG_SETTING_ECONOMY_TYPE_ORIGINAL                        :Original
+ STR_CONFIG_SETTING_ECONOMY_TYPE_SMOOTH                          :Smooth
+ STR_CONFIG_SETTING_ECONOMY_TYPE_FROZEN                          :Frozen
+ 
++STR_CONFIG_SETTING_INCOME_PERCENT                                :Cargo income: {STRING2}
++STR_CONFIG_SETTING_INCOME_PERCENT_HELPTEXT                       :Percentage of the normal payment that companies receive for delivering cargo
+ STR_CONFIG_SETTING_FEEDER_PAYMENT_SHARE                         :Percentage of leg profit to pay in feeder systems: {STRING2}
+ STR_CONFIG_SETTING_FEEDER_PAYMENT_SHARE_HELPTEXT                :Percentage of income given to the intermediate legs in feeder systems, giving more control over the income
+ 
+diff --git a/src/saveload/saveload.h b/src/saveload/saveload.h
+index 2b0f10c..96a9b70 100644
+--- a/src/saveload/saveload.h
++++ b/src/saveload/saveload.h
+@@ -413,6 +413,8 @@ enum SaveLoadVersion : uint16_t {
+ 	SLV_LOCKS_UNDER_BRIDGES,                ///< 361  PR#14595 Allow locks under bridges.
+ 	SLV_ENGINE_MULTI_RAILTYPE,              ///< 362  PR#14357 Train engines can have multiple railtypes.
+ 
++	SLV_INCOME_PERCENT,                     ///< 363  openttd-service: economy.income_percent (cargo income multiplier).
++
+ 	SL_MAX_VERSION,                         ///< Highest possible saveload version
+ };
+ 
+diff --git a/src/settings_type.h b/src/settings_type.h
+index 7a07d0d..6087859 100644
+--- a/src/settings_type.h
++++ b/src/settings_type.h
+@@ -538,6 +538,7 @@ struct VehicleSettings {
+ 
+ /** Settings related to the economy. */
+ struct EconomySettings {
++	uint16_t income_percent;                 ///< openttd-service: percentage of the normal cargo income that is paid
+ 	bool   inflation;                        ///< disable inflation
+ 	bool   bribe;                            ///< enable bribing the local authority
+ 	EconomyType type;                        ///< economy type (original/smooth/frozen)
+diff --git a/src/table/settings/economy_settings.ini b/src/table/settings/economy_settings.ini
+index de10a04..03c4ea5 100644
+--- a/src/table/settings/economy_settings.ini
++++ b/src/table/settings/economy_settings.ini
+@@ -200,6 +200,19 @@ strval   = STR_CONFIG_SETTING_ECONOMY_TYPE_ORIGINAL
+ post_cb  = [](auto) { InvalidateWindowClassesData(WC_INDUSTRY_VIEW); }
+ cat      = SC_BASIC
+ 
++[SDT_VAR]
++var      = economy.income_percent
++type     = SLE_UINT16
++from     = SLV_INCOME_PERCENT
++def      = 100
++min      = 1
++max      = 1000
++interval = 5
++str      = STR_CONFIG_SETTING_INCOME_PERCENT
++strhelp  = STR_CONFIG_SETTING_INCOME_PERCENT_HELPTEXT
++strval   = STR_CONFIG_SETTING_PERCENTAGE
++cat      = SC_BASIC
++
+ [SDT_VAR]
+ var      = economy.feeder_payment_share
+ type     = SLE_UINT8
+@@ -323,7 +336,7 @@ cat      = SC_BASIC
+ [SDT_VAR]
+ var      = economy.minutes_per_calendar_year
+ type     = SLE_UINT16
+-flags    = SettingFlag::GuiZeroIsSpecial, SettingFlag::NoNetwork
++flags    = SettingFlag::GuiZeroIsSpecial /* openttd-service: changeable in network games (synced command) */
+ def      = CalendarTime::DEF_MINUTES_PER_YEAR
+ min      = CalendarTime::FROZEN_MINUTES_PER_YEAR
+ max      = CalendarTime::MAX_MINUTES_PER_YEAR

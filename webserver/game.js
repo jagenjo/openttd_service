@@ -26,6 +26,7 @@ export const MAPGEN = {
 export const DEFAULT_SETTINGS = {
   ...Object.fromEntries(Object.entries(MAPGEN).map(([k, v]) => [k, v[4]])),
   seed: null, // null = aleatoria
+  money_factor: 0.5, // multiplicador de los ingresos por carga (1 = normal)
   server_name: 'OpenTTD Slow Time',
   server_password: '',
   minutes_per_calendar_year: 1440,
@@ -88,12 +89,17 @@ export class Game extends EventEmitter {
       const n = Math.round(Number(s[k]));
       s[k] = Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
     }
+    const f = Number(s.money_factor);
+    s.money_factor = Number.isFinite(f) ? Math.min(10, Math.max(0.01, Math.round(f * 100) / 100)) : 0.5;
     // Semilla: vacía o 0 = aleatoria.
     s.seed = s.seed === '' || s.seed == null || Number(s.seed) <= 0 ? null : Math.min(4294967294, Math.floor(Number(s.seed)));
     s.max_companies = Math.min(15, Math.max(1, s.max_companies | 0));
     s.actions_per_day = Math.min(100000, Math.max(0, s.actions_per_day | 0)); // 0 = sin límite
     const oldMax = this.settings.actions_per_day;
+    const oldFactor = this.settings.money_factor;
+    const oldMinutes = this.settings.minutes_per_calendar_year;
     this.settings = s;
+    if (s.money_factor !== oldFactor || s.minutes_per_calendar_year !== oldMinutes) this.moneySynced = false; // se aplica a la partida en marcha
     if (s.actions_per_day !== oldMax) {
       this.players.adjustActions(oldMax, s.actions_per_day);
       this.actionsSynced = false; // se vuelve a dar a cada empresa su valor en la próxima pasada
@@ -115,10 +121,17 @@ export class Game extends EventEmitter {
       landscape: s.landscape,
     };
     cfg.network = { ...cfg.network, max_companies: s.max_companies };
+    cfg.economy = { ...cfg.economy, income_percent: this.incomePercent };
     for (const [k, [section, name]] of Object.entries(MAPGEN)) cfg[section] = { ...cfg[section], [name]: s[k] };
     fs.writeFileSync(path.join(this.dataDir, 'openttd.cfg'), stringifyIni(cfg));
     fs.writeFileSync(path.join(this.dataDir, 'private.cfg'), stringifyIni({ network: { server_name: s.server_name } }));
     fs.writeFileSync(path.join(this.dataDir, 'secrets.cfg'), stringifyIni({ network: { server_password: s.server_password } }), { mode: 0o600 });
+  }
+
+  // Ingresos por carga, en % (50 = la mitad). Es un ajuste de la partida: va en la partida
+  // guardada y el servidor lo propaga a los clientes, así que todos calculan lo mismo.
+  get incomePercent() {
+    return Math.min(1000, Math.max(1, Math.round(this.settings.money_factor * 100)));
   }
 
   get running() {
@@ -176,6 +189,7 @@ export class Game extends EventEmitter {
       this.companies = [];
       this.date = null;
       this.actionsSynced = false;
+      this.moneySynced = false;
       const pending = [this.current, ...this.queue].filter(Boolean);
       if (this.current) this.finish(this.current);
       this.queue = [];
@@ -287,6 +301,7 @@ export class Game extends EventEmitter {
 
     await this.enforcePlayers();
     await this.syncActions();
+    await this.syncIncome();
     await this.refreshMap();
   }
 
@@ -363,6 +378,20 @@ export class Game extends EventEmitter {
       const owner = m && P.ownerOf(Number(m[1]));
       if (owner && Number(m[2]) >= 0) P.setActions(owner, Number(m[2]));
     }
+  }
+
+  // La partida guarda su multiplicador de ingresos: al cargar una guardada con otro valor (o al
+  // cambiarlo en el panel) se pone el del panel con el comando de consola `setting`.
+  async syncIncome() {
+    if (this.moneySynced) return;
+    const pct = this.incomePercent;
+    await this.command(`setting income_percent ${pct}`);
+    // El ritmo del calendario también se puede cambiar con la partida en marcha.
+    await this.command(`setting minutes_per_calendar_year ${this.settings.minutes_per_calendar_year}`);
+    const out = (await this.command('setting income_percent')).join(' ');
+    this.moneySynced = new RegExp(`current value[^\\d]*${pct}\\b`, 'i').test(out);
+    this.addLog(this.moneySynced ? `Ingresos por carga: ${pct}% · ${this.settings.minutes_per_calendar_year} min por año de juego` : `No se pudo fijar los ingresos (${out})`);
+    if (!this.moneySynced) this.moneySynced = true; // no insistir en cada pasada
   }
 
   // --- Mapa -------------------------------------------------------------------------

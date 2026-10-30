@@ -84,6 +84,10 @@ OpenTTD no tiene cuentas de usuario, así que las gestiona el servidor web
   todas. Se configuran en el panel (*Acciones por día*, 0 = sin límite) y el jugador ve el
   contador en la barra de estado del juego, junto al dinero. El límite está en el propio servidor de juego
   (`patches/service-server.patch`), por eso `build-server.sh` también aplica parches.
+- **Factor de ingresos:** todo lo que se cobra por entregar carga se multiplica por un factor
+  (0,5 por defecto; ajustable en el panel, también con la partida en marcha). Es un ajuste real de
+  la partida (`economy.income_percent`, en la partida guardada y propagado a los clientes), no un
+  parche solo del servidor, para que todos calculen lo mismo (`patches/service-income.patch`).
 - **Mapa:** el panel (y la página de inicio) muestra el mapa (un píxel por casilla: color de empresa, blanco = estaciones,
   negro = industrias), regenerado cada hora y al cargar una partida. Lo vuelca el servidor de juego
   con el comando de consola `dump_map` y lo convierte en PNG `webserver/gamemap.js`.

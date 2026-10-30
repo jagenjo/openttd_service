@@ -5,48 +5,53 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OpenTTD · Administración</title>
 <style>
-  :root { --bg:#f4f5f7; --card:#fff; --fg:#1d2330; --muted:#667085; --line:#e3e6eb; --accent:#2f6fde; --ok:#1f9d55; --bad:#d64545; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#14171c; --card:#1d2128; --fg:#e7e9ee; --muted:#9aa3b2; --line:#2c323c; --accent:#5b8ff0; } }
+  :root { color-scheme: dark; --bg:#111923; --card:#1a2432; --card2:#202c3d; --fg:#e4e9f0; --muted:#8a9db3; --line:#2a394d; --accent:#4f8ff0; --ok:#3fb870; --bad:#ee6b6b;
+          --font: "Segoe UI Variable Text", "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif; --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; }
   * { box-sizing: border-box; }
-  body { margin:0; font:14px/1.45 system-ui, sans-serif; background:var(--bg); color:var(--fg); }
-  header { display:flex; align-items:center; gap:12px; padding:14px 20px; border-bottom:1px solid var(--line); background:var(--card); flex-wrap:wrap; }
-  header h1 { font-size:17px; margin:0; flex:1; }
-  .pill { padding:3px 10px; border-radius:99px; font-size:12px; font-weight:600; color:#fff; background:var(--muted); }
+  body { margin:0; font:13px/1.4 var(--font); background:var(--bg); color:var(--fg); -webkit-font-smoothing:antialiased; }
+  a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+  header { display:flex; align-items:center; gap:10px; padding:6px 12px; border-bottom:1px solid var(--line); background:#0d141c; position:sticky; top:0; z-index:5; flex-wrap:wrap; }
+  header h1 { font-size:15px; margin:0; flex:1; }
+  .pill { padding:2px 9px; border-radius:99px; font-size:11px; font-weight:700; color:#fff; background:var(--muted); }
   .pill.on { background:var(--ok); } .pill.off { background:var(--bad); }
-  main { display:grid; grid-template-columns:repeat(auto-fit, minmax(340px, 1fr)); gap:16px; padding:16px; max-width:1300px; margin:0 auto; }
-  section { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; min-width:0; }
+  main { display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:8px; padding:8px; max-width:1400px; margin:0 auto; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:8px 10px; min-width:0; }
   section.wide { grid-column:1 / -1; }
   section.wide2 { grid-column:span 2; }
   @media (max-width:800px) { section.wide2 { grid-column:1 / -1; } }
-  h2 { font-size:14px; margin:0 0 10px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
-  button { font:inherit; padding:6px 12px; border-radius:6px; border:1px solid var(--line); background:var(--card); color:var(--fg); cursor:pointer; }
+  h2 { font-size:11px; margin:0 0 6px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); }
+  h3 { font-size:12px; margin:8px 0 6px; color:var(--muted); }
+  button { font:inherit; padding:4px 10px; border-radius:6px; border:1px solid var(--line); background:var(--card2); color:var(--fg); cursor:pointer; transition:background .12s, border-color .12s; }
+  button:hover:not(:disabled) { background:#2a3a50; border-color:#3a4f69; }
   button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.primary:hover:not(:disabled) { background:#6aa0f4; border-color:#6aa0f4; }
   button.danger { color:var(--bad); }
-  button:disabled { opacity:.45; cursor:default; }
-  input, select { font:inherit; padding:6px 8px; border-radius:6px; border:1px solid var(--line); background:var(--bg); color:var(--fg); width:100%; }
-  label { display:block; font-size:12px; color:var(--muted); margin-bottom:8px; }
-  label input, label select { margin-top:3px; }
-  label.check { display:flex; gap:8px; align-items:flex-start; color:var(--fg); font-size:13px; }
+  button:disabled { opacity:.4; cursor:default; }
+  input, select { font:inherit; padding:4px 7px; border-radius:6px; border:1px solid var(--line); background:#0d141c; color:var(--fg); width:100%; }
+  input:focus, select:focus { outline:0; border-color:var(--accent); }
+  label { display:block; font-size:11px; color:var(--muted); margin-bottom:6px; }
+  label input, label select { margin-top:2px; }
+  label.check { display:flex; gap:8px; align-items:flex-start; color:var(--fg); font-size:12px; }
   label.check input { width:auto; margin:2px 0 0; }
-  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }
-  .grid3 { display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:0 12px; }
-  h3 { font-size:13px; margin:12px 0 8px; color:var(--muted); }
-  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-  table { width:100%; border-collapse:collapse; font-size:13px; }
-  th, td { text-align:left; padding:6px 4px; border-bottom:1px solid var(--line); }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:0 10px; }
+  .grid3 { display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:0 10px; }
+  .row { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  table { width:100%; border-collapse:collapse; font-size:12px; }
+  th, td { text-align:left; padding:3px 4px; border-bottom:1px solid var(--line); }
   th { color:var(--muted); font-weight:500; }
-  td.num { text-align:right; font-variant-numeric:tabular-nums; }
+  td.num { text-align:right; font-variant-numeric:tabular-nums; font-family:var(--mono); }
   .muted { color:var(--muted); }
-  ul.plain { list-style:none; padding:0; margin:8px 0; }
-  ul.plain li { display:flex; justify-content:space-between; align-items:center; padding:4px 0; border-bottom:1px solid var(--line); }
-  pre#log { height:260px; overflow:auto; background:var(--bg); padding:8px; border-radius:6px; font-size:12px; margin:0 0 8px; white-space:pre-wrap; }
-  #toast { position:fixed; bottom:16px; right:16px; background:var(--fg); color:var(--bg); padding:8px 14px; border-radius:6px; display:none; max-width:80vw; }
-  #mapView { position:relative; width:min(100%,640px); aspect-ratio:1; overflow:hidden; border:1px solid var(--line); background:var(--bg); cursor:grab; touch-action:none; flex:none; }
+  p { margin:6px 0; }
+  ul.plain { list-style:none; padding:0; margin:6px 0; }
+  ul.plain li { display:flex; justify-content:space-between; align-items:center; padding:3px 0; border-bottom:1px solid var(--line); }
+  pre#log { height:220px; overflow:auto; background:#0d141c; border:1px solid var(--line); padding:6px; border-radius:6px; font:11px/1.35 var(--mono); margin:0 0 6px; white-space:pre-wrap; }
+  #toast { position:fixed; bottom:14px; right:14px; background:var(--fg); color:var(--bg); padding:6px 12px; border-radius:6px; display:none; max-width:80vw; z-index:9; }
+  .big { font:700 20px/1.2 var(--mono); }
+  #mapView { position:relative; width:min(100%,640px); aspect-ratio:1; overflow:hidden; border:1px solid var(--line); border-radius:6px; background:#0d141c; cursor:grab; touch-action:none; flex:none; }
   #mapView.drag { cursor:grabbing; }
   #mapImg { position:absolute; left:0; top:0; transform-origin:0 0; image-rendering:pixelated; user-select:none; display:none; }
-  #mapZoom { position:absolute; top:6px; right:6px; display:flex; flex-direction:column; gap:4px; }
-  #mapZoom button { padding:2px 9px; }
-  .big { font-size:22px; font-weight:600; }
+  #mapZoom { position:absolute; top:6px; right:6px; display:flex; flex-direction:column; gap:3px; }
+  #mapZoom button { padding:1px 8px; background:#0d141ccc; }
 </style>
 </head>
 <body>
@@ -56,6 +61,16 @@
   <a href="/play/" target="_blank">Abrir el juego</a> · <a href="/" target="_blank">Página de inicio</a>
 </header>
 <main>
+  <section class="wide">
+    <h2>Ritmo y economía <span class="muted" style="text-transform:none;letter-spacing:0">· se aplican también a la partida en marcha</span></h2>
+    <form id="paceForm" class="row" style="align-items:flex-end;gap:12px">
+      <label style="margin:0;width:230px">Minutos reales por año de juego <input name="minutes_per_calendar_year" type="number" min="1" max="10080"></label>
+      <label style="margin:0;width:230px">Factor de ingresos por carga (1 = normal) <input name="money_factor" type="number" min="0.01" max="10" step="0.05"></label>
+      <button class="primary">Aplicar</button>
+      <span class="muted" id="paceInfo"></span>
+    </form>
+  </section>
+
   <section>
     <h2>Partida</h2>
     <div class="big" id="date">—</div>
@@ -68,7 +83,7 @@
       <button id="btnUnpause">Continuar</button>
       <button id="btnSave">Guardar</button>
     </div>
-    <h2 style="margin-top:16px">Partidas guardadas</h2>
+    <h2 style="margin-top:8px">Partidas guardadas</h2>
     <ul class="plain" id="saves" style="max-height:260px;overflow-y:auto;padding-right:6px"></ul>
   </section>
 
@@ -77,7 +92,7 @@
     <p class="muted">Solo pueden jugar los usuarios de esta lista: entran desde el cliente web con su usuario y contraseña, y ese es su nombre en el juego.</p>
     <form class="row" id="addUser"><input id="newUser" placeholder="Usuario" maxlength="24" style="flex:1" autocomplete="off"><input id="newPass" type="text" placeholder="Contraseña (mín. 6)" style="flex:1" autocomplete="off"><button>Crear / cambiar</button></form>
     <ul class="plain" id="users"></ul>
-    <h2 style="margin-top:16px">Acciones</h2>
+    <h2 style="margin-top:8px">Acciones</h2>
     <form class="row" id="actionsForm">
       <label style="margin:0;flex:1">Acciones por día (0 = sin límite) <input name="actions_per_day" type="number" min="0" max="100000"></label>
       <button class="primary">Guardar</button>
@@ -112,7 +127,6 @@
       <label>Nombre del servidor <input name="server_name"></label>
       <label>Contraseña para entrar (vacía = sin contraseña) <input name="server_password"></label>
       <div class="grid2">
-        <label>Minutos reales por año de juego <input name="minutes_per_calendar_year" type="number" min="1" max="10080"></label>
         <label>Año de inicio <input name="starting_year" type="number" min="1" max="5000000"></label>
         <label>Ancho del mapa
           <select name="map_x"><option value="6">64</option><option value="7">128</option><option value="8">256</option><option value="9">512</option><option value="10">1024</option><option value="11">2048</option><option value="12">4096</option></select></label>
@@ -219,12 +233,13 @@ function render() {
     <td><button class="danger" data-delcompany="${c.id}" data-name="${esc(c.name)}">Eliminar</button></td></tr>`).join('')
     || '<tr><td colspan="11" class="muted">Sin empresas</td></tr>';
 
+  $('#paceInfo').textContent = `1 año de juego = ${(m / 60).toFixed(1)} h reales · ingresos al ${Math.round(s.settings.money_factor * 100)} %`;
   renderMap(s.map);
   const ai = $('#actionsForm').elements.actions_per_day;
   if (document.activeElement !== ai) ai.value = s.settings.actions_per_day;
 
   if (!settingsLoaded) {
-    for (const el of $('#settings').elements) if (el.name) el.value = s.settings[el.name];
+    for (const el of [...$('#settings').elements, ...$('#paceForm').elements]) if (el.name) el.value = s.settings[el.name] ?? '';
     settingsLoaded = true;
   }
 }
@@ -333,6 +348,10 @@ $('#addUser').onsubmit = (e) => {
   e.preventDefault();
   post('/api/users', { name: $('#newUser').value.trim(), password: $('#newPass').value })
     .then(() => { $('#newUser').value = ''; $('#newPass').value = ''; toast('Cuenta guardada'); refresh(); });
+};
+$('#paceForm').onsubmit = (e) => {
+  e.preventDefault();
+  post('/api/settings', Object.fromEntries(new FormData(e.target))).then(() => { toast('Aplicado'); settingsLoaded = false; refresh(); });
 };
 $('#settings').onsubmit = (e) => {
   e.preventDefault();

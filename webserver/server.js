@@ -115,6 +115,7 @@ function publicInfo() {
     companies: game.companies.length,
     vehicles: { trains: total('trains'), road: total('road'), planes: total('planes'), ships: total('ships') },
     actionsPerDay: game.settings.actions_per_day,
+    moneyFactor: game.settings.money_factor,
     nextRestore: game.nextRestore(),
     ranking,
     map: game.mapInfo && { time: game.mapInfo.time, width: game.mapInfo.width, height: game.mapInfo.height },

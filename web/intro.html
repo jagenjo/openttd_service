@@ -251,7 +251,7 @@ function render(d) {
   $('#registered').textContent = d.registered;
   $('#companies').textContent = d.companies;
   $('#vehicles').textContent = Object.values(d.vehicles).reduce((a, b) => a + b, 0);
-  $('#speed').textContent = `1 año de juego = ${(d.minutesPerYear / 60).toFixed(1)} h reales.`;
+  $('#speed').textContent = `1 año de juego = ${(d.minutesPerYear / 60).toFixed(1)} h reales · ingresos por carga ×${d.moneyFactor ?? 1}`;
   $('#apd').textContent = d.actionsPerDay > 0 ? `${d.actionsPerDay} acciones` : 'sin límite';
   $('#ranking').innerHTML = d.ranking.map((c) => `<tr>
       <td class="${c.rank <= 3 ? 'medal' : ''}">${c.rank}</td>
