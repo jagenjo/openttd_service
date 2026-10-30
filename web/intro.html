@@ -17,6 +17,10 @@
   main { max-width:1200px; margin:0 auto; padding:20px; display:grid; gap:18px; grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
   section { background:var(--card); border:1px solid var(--line); padding:14px 16px; min-width:0; }
   section.wide { grid-column:1 / -1; }
+  .col { display:grid; gap:18px; align-content:start; min-width:0; }
+  #chatSec { display:flex; flex-direction:column; }
+  #chatSec #chat { overflow-wrap:anywhere; }
+  .legend .on { color:var(--ok); font-weight:bold; }
   h2 { margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
   .stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:12px; }
   .stat b { display:block; font-size:24px; }
@@ -67,6 +71,7 @@
     <p class="muted" id="speed" style="margin:12px 0 0"></p>
   </section>
 
+  <div class="col">
   <section>
     <h2>Mapa <span id="mapInfo" style="text-transform:none;letter-spacing:0"></span></h2>
     <div id="mapView" title="Arrastra para mover, rueda para zoom, doble clic para restablecer">
@@ -77,17 +82,16 @@
   </section>
 
   <section>
-    <h2>Conectados ahora</h2>
-    <ul class="plain" id="online"></ul>
-    <h2 style="margin-top:18px">Cómo se juega</h2>
+    <h2>Cómo se juega</h2>
     <p class="muted" style="margin:0">Cada jugador tiene su cuenta y su propia empresa. Construir o destruir gasta una acción
       (<b id="apd">—</b> al día); las acciones se restauran todos los días a las 0:00.
       Los vehículos van a velocidad normal, pero el calendario avanza despacio.</p>
   </section>
+  </div>
 
-  <section class="wide">
+  <section id="chatSec">
     <h2>Mensajes <span class="muted" style="text-transform:none;letter-spacing:0">· los jugadores conectados los ven también dentro del juego; el resto, al entrar</span></h2>
-    <div id="chat" style="height:220px;overflow-y:auto;background:#16202b;border:1px solid var(--line);padding:6px 10px"></div>
+    <div id="chat" style="flex:1;min-height:260px;overflow-y:auto;background:#16202b;border:1px solid var(--line);padding:6px 10px"></div>
     <form id="chatForm" style="display:flex;gap:8px;margin-top:8px">
       <input id="chatText" maxlength="200" autocomplete="off" placeholder="Inicia sesión para escribir un mensaje" disabled
         style="flex:1;padding:8px;background:#16202b;color:var(--fg);border:1px solid var(--line);font:inherit">
@@ -172,7 +176,6 @@ function render(d) {
   $('#vehicles').textContent = Object.values(d.vehicles).reduce((a, b) => a + b, 0);
   $('#speed').textContent = `1 año de juego = ${(d.minutesPerYear / 60).toFixed(1)} h reales.`;
   $('#apd').textContent = d.actionsPerDay > 0 ? `${d.actionsPerDay} acciones` : 'sin límite';
-  $('#online').innerHTML = d.online.map((n) => `<li><span class="dot on"></span>${esc(n)}</li>`).join('') || '<li class="muted">Nadie conectado ahora mismo</li>';
   $('#ranking').innerHTML = d.ranking.map((c) => `<tr>
       <td class="${c.rank <= 3 ? 'medal' : ''}">${c.rank}</td>
       <td>${swatch(c.rgb)}${esc(c.company)}</td>
@@ -190,7 +193,7 @@ function render(d) {
   }
   const sw = (c, t) => `<span><span class="sw" style="background:${c}"></span>${t}</span>`;
   $('#legend').innerHTML = sw('#fff', 'Estaciones') + sw('#000', 'Industrias') + sw('rgb(120,120,112)', 'Pueblos')
-    + d.ranking.map((c) => sw(c.rgb ? `rgb(${c.rgb})` : '#f0f', esc(c.player || c.company))).join('');
+    + d.ranking.map((c) => `<span class="${c.online ? 'on' : ''}">${sw(c.rgb ? `rgb(${c.rgb})` : '#f0f', (c.online ? '● ' : '') + esc(c.player || c.company))}</span>`).join('');
 }
 
 async function refresh() {
