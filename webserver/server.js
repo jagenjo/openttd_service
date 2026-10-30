@@ -243,6 +243,25 @@ const api = {
   'POST /api/say': async (b) => game.command(`say "${String(b.message || '').replace(/["\r\n]/g, "'")}"`),
   'GET /api/users': async () => ({ users: users.list(), online: [...bridged.keys()] }),
   'POST /api/users': async (b) => users.set(b.name, b.password),
+  // Vincula (o desvincula, con company null) una cuenta a una empresa existente.
+  'POST /api/users/company': async (b) => {
+    const name = String(b.name || '');
+    if (!users.has(name)) throw new Error('La cuenta no existe');
+    if (b.company === null) {
+      users.setCompany(name, null);
+      return;
+    }
+    const id = Number(b.company);
+    if (!game.companies.some((c) => c.id === id)) throw new Error('La empresa no existe (¿está el servidor en marcha?)');
+    const owner = users.ownerOf(id);
+    if (owner && owner.toLowerCase() !== name.toLowerCase()) throw new Error(`La empresa ya es de ${owner}`);
+    users.setCompany(name, id);
+    // La empresa pasa a tener las acciones de su nuevo dueño.
+    const left = game.actionsLeft(name);
+    await game.command(`actions_set ${id} ${left ?? game.maxActions}`).catch(() => {});
+    game.addLog(`Empresa ${id} asignada a '${name}' desde el panel`);
+    await game.refresh().catch(() => {}); // si el jugador está dentro, se le mueve ya
+  },
   'POST /api/users/delete': async (b) => {
     users.remove(b.name);
     bridged.get(String(b.name).toLowerCase())?.close();

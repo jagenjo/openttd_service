@@ -170,8 +170,22 @@ function render() {
   $('#saves').innerHTML = s.saves.map((x) => `<li><span>${esc(x.name)} <span class="muted">${new Date(x.mtime).toLocaleString('es-ES')}</span></span>
     <button data-load="${esc(x.name)}" ${s.running ? 'disabled' : ''}>Cargar</button></li>`).join('') || '<li class="muted">Ninguna todavía</li>';
 
-  $('#users').innerHTML = users.map((u) => `<li><span>${esc(u.name)} <span class="muted">${u.company ? `· empresa ${u.company}` : '· sin empresa'}${status.settings.actions_per_day > 0 ? ` · acciones ${u.actions ?? status.settings.actions_per_day}/${status.settings.actions_per_day}` : ''}${online.includes(u.name.toLowerCase()) ? ' · conectado' : ''}</span></span><button class="danger" data-deluser="${esc(u.name)}">Borrar</button></li>`).join('')
+  const sel = document.activeElement;
+  if (!(sel && sel.dataset && sel.dataset.usercompany !== undefined)) { // no se redibuja con un desplegable abierto
+  $('#users').innerHTML = users.map((u) => {
+    const opts = `<option value="">Sin empresa</option>` + s.companies.map((c) => {
+      const owner = users.find((x) => x.company === c.id);
+      const taken = owner && owner.name !== u.name;
+      return `<option value="${c.id}" ${u.company === c.id ? 'selected' : ''} ${taken ? 'disabled' : ''}>${c.id} · ${esc(c.name)}${taken ? ` (de ${esc(owner.name)})` : ''}</option>`;
+    }).join('');
+    // Si la empresa vinculada no está en la lista (servidor parado), se conserva el valor.
+    const stale = u.company && !s.companies.some((c) => c.id === u.company) ? `<option value="${u.company}" selected>${u.company} · (servidor parado)</option>` : '';
+    return `<li style="gap:8px;flex-wrap:wrap"><span style="flex:1">${esc(u.name)} <span class="muted">${online.includes(u.name.toLowerCase()) ? '· conectado' : ''}${status.settings.actions_per_day > 0 ? ` · acciones ${u.actions ?? status.settings.actions_per_day}/${status.settings.actions_per_day}` : ''}</span></span>
+      <select data-usercompany="${esc(u.name)}" style="width:auto" title="Empresa de este jugador">${opts}${stale}</select>
+      <button class="danger" data-deluser="${esc(u.name)}">Borrar</button></li>`;
+  }).join('')
     || '<li class="muted">Sin cuentas: nadie puede entrar</li>';
+  }
 
   $('#clients').innerHTML = s.clients.map((c) => `<tr><td>${c.id}</td><td>${esc(c.name)}</td><td>${c.company === 255 ? 'Espectador' : c.company}</td><td>${esc(c.ip)}</td>
     <td><button class="danger" data-kick="${c.id}">Expulsar</button></td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nadie conectado</td></tr>';
@@ -279,6 +293,13 @@ $('#btnPause').onclick = () => post('/api/pause').then(() => toast('Pausado'));
 $('#btnUnpause').onclick = () => post('/api/unpause').then(() => toast('En marcha'));
 $('#btnSave').onclick = () => { const name = prompt('Nombre de la partida', 'manual'); if (name) post('/api/save', { name }).then(() => { toast('Guardada'); refresh(); }); };
 
+document.addEventListener('change', (e) => {
+  const name = e.target.dataset?.usercompany;
+  if (name === undefined) return;
+  post('/api/users/company', { name, company: e.target.value === '' ? null : Number(e.target.value) })
+    .then(() => { toast('Empresa asignada'); e.target.blur(); refresh(); })
+    .catch(() => { e.target.blur(); refresh(); });
+});
 document.addEventListener('click', (e) => {
   const d = e.target.dataset || {};
   if (d.load) post('/api/start', { save: d.load }).then(refresh);
