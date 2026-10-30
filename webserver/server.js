@@ -121,6 +121,13 @@ function publicInfo() {
   };
 }
 
+// Color del jugador (el de su empresa en el mapa) para pintar sus mensajes.
+function withColour(m) {
+  const id = users.companyOf(m.user);
+  const company = id && game.companies.find((c) => c.id === id);
+  return { ...m, rgb: (company && COMPANY_COLOURS[company.colour]) || null };
+}
+
 function serveStatic(req, res) {
   const url = new URL(req.url, 'http://x');
   let rel = decodeURIComponent(url.pathname);
@@ -133,7 +140,7 @@ function serveStatic(req, res) {
   }
   if (rel === '/chat.json') {
     const since = Number(url.searchParams.get('since')) || 0;
-    res.writeHead(200, { 'Content-Type': MIME['.json'], 'Cache-Control': 'no-cache' }).end(JSON.stringify({ messages: chat.since(since, since ? 200 : 50) }));
+    res.writeHead(200, { 'Content-Type': MIME['.json'], 'Cache-Control': 'no-cache' }).end(JSON.stringify({ messages: chat.since(since, since ? 200 : 50).map(withColour) }));
     return;
   }
   if (rel === '/map.png') {
