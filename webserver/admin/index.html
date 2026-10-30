@@ -65,7 +65,7 @@
       <button id="btnSave">Guardar</button>
     </div>
     <h2 style="margin-top:16px">Partidas guardadas</h2>
-    <ul class="plain" id="saves"></ul>
+    <ul class="plain" id="saves" style="max-height:260px;overflow-y:auto;padding-right:6px"></ul>
   </section>
 
   <section>
@@ -167,8 +167,10 @@ function render() {
   $('#btnStart').disabled = s.running || !s.saves.length;
   for (const id of ['#btnStop', '#btnPause', '#btnUnpause', '#btnSave']) $(id).disabled = !s.running;
 
+  const savesTop = $('#saves').scrollTop;
   $('#saves').innerHTML = s.saves.map((x) => `<li><span>${esc(x.name)} <span class="muted">${new Date(x.mtime).toLocaleString('es-ES')}</span></span>
     <button data-load="${esc(x.name)}" ${s.running ? 'disabled' : ''}>Cargar</button></li>`).join('') || '<li class="muted">Ninguna todavía</li>';
+  $('#saves').scrollTop = savesTop;
 
   const sel = document.activeElement;
   if (!(sel && sel.dataset && sel.dataset.usercompany !== undefined)) { // no se redibuja con un desplegable abierto
