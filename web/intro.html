@@ -11,6 +11,8 @@
   header { display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:18px 24px; background:#16202b; border-bottom:2px solid var(--accent); }
   header h1 { margin:0; font-size:22px; flex:1; letter-spacing:.02em; }
   .btn { display:inline-block; padding:8px 18px; border:1px solid #a8a8a8; background:#4a6a8a; color:#fff; text-decoration:none; font-size:15px; }
+  #loginForm input { padding:8px; background:#16202b; color:var(--fg); border:1px solid var(--line); font:inherit; }
+  button.btn { cursor:pointer; font-family:inherit; }
   .btn.play { background:var(--accent); border-color:#f3c47a; color:#1d2733; font-weight:bold; font-size:17px; padding:10px 28px; }
   main { max-width:1200px; margin:0 auto; padding:20px; display:grid; gap:18px; grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
   section { background:var(--card); border:1px solid var(--line); padding:14px 16px; min-width:0; }
@@ -43,7 +45,13 @@
 <header>
   <h1 id="name">OpenTTD</h1>
   <span id="who" class="muted"></span>
-  <a class="btn" id="login" href="/login">Iniciar sesión</a>
+  <form id="loginForm" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0">
+    <input name="user" placeholder="Usuario" autocomplete="username" maxlength="24" required style="width:130px">
+    <input name="password" type="password" placeholder="Contraseña" autocomplete="current-password" required style="width:130px">
+    <button class="btn">Entrar</button>
+    <span id="loginError" style="color:#ff8a8a"></span>
+  </form>
+  <a class="btn" id="logout" href="#" style="display:none">Cerrar sesión</a>
   <a class="btn play" href="/play/">▶ Jugar</a>
 </header>
 <main>
@@ -199,7 +207,8 @@ async function pollChat() {
     if (!messages.length) return;
     const box = $('#chat'), atBottom = box.scrollTop + box.clientHeight >= box.scrollHeight - 8 || chatLast === 0;
     for (const m of messages) {
-      chatLast = Math.max(chatLast, m.id);
+      if (m.id <= chatLast) continue; // dos consultas a la vez pueden traer el mismo mensaje
+      chatLast = m.id;
       const row = document.createElement('div');
       const when = new Date(m.time).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
       row.innerHTML = `<span class="muted">${when}</span> <b></b> <span class="t"></span>`;
@@ -224,16 +233,29 @@ $('#chatForm').onsubmit = async (e) => {
   pollChat();
 };
 
-// Si ya hay sesión, se saluda al jugador.
-fetch('/auth/me').then((r) => (r.ok ? r.json() : null)).then((me) => {
-  if (!me) return;
-  $('#who').textContent = `Sesión: ${me.user}`;
-  $('#chatText').disabled = false;
-  $('#chatText').placeholder = 'Escribe un mensaje para los demás jugadores…';
-  $('#chatForm button').disabled = false;
-  $('#login').textContent = 'Cerrar sesión';
-  $('#login').onclick = (e) => { e.preventDefault(); fetch('/auth/logout', { method: 'POST' }).then(() => location.reload()); };
-});
+// --- Sesión: se puede entrar desde aquí para escribir mensajes sin pasar por el juego ---
+function applySession(me) {
+  const on = !!me;
+  $('#who').textContent = on ? `Sesión: ${me.user}` : '';
+  $('#loginForm').style.display = on ? 'none' : 'flex';
+  $('#logout').style.display = on ? '' : 'none';
+  $('#chatText').disabled = !on;
+  $('#chatForm button').disabled = !on;
+  $('#chatText').placeholder = on ? 'Escribe un mensaje para los demás jugadores…' : 'Inicia sesión para escribir un mensaje';
+}
+const loadSession = () => fetch('/auth/me', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then(applySession).catch(() => applySession(null));
+loadSession();
+$('#loginForm').onsubmit = async (e) => {
+  e.preventDefault();
+  $('#loginError').textContent = '';
+  const r = await fetch('/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.fromEntries(new FormData(e.target))) });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) { $('#loginError').textContent = data.error || r.statusText; return; }
+  e.target.reset();
+  await loadSession();
+  $('#chatText').focus();
+};
+$('#logout').onclick = (e) => { e.preventDefault(); fetch('/auth/logout', { method: 'POST' }).then(loadSession); };
 </script>
 </body>
 </html>
