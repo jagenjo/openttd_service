@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { parseIni, stringifyIni } from './ini.js';
+import { renderMap } from './gamemap.js';
 
 export const DEFAULT_SETTINGS = {
   server_name: 'OpenTTD Slow Time',
@@ -15,6 +16,7 @@ export const DEFAULT_SETTINGS = {
   map_y: 8,
   landscape: 'temperate',
   max_companies: 15,
+  actions_per_day: 100,
 };
 
 export class Game extends EventEmitter {
@@ -35,6 +37,10 @@ export class Game extends EventEmitter {
     this.clients = [];
     this.companies = [];
     this.date = null;
+    this.actionsSynced = false;
+    this.actionsFile = path.join(root, 'runtime', 'actions.json');
+    this.mapFile = path.join(root, 'runtime', 'map.png');
+    this.mapInfo = this.loadMapInfo();
     fs.mkdirSync(this.dataDir, { recursive: true });
     this.settings = this.loadSettings();
   }
@@ -49,7 +55,7 @@ export class Game extends EventEmitter {
 
   saveSettings(patch) {
     const s = { ...this.settings };
-    const ints = ['minutes_per_calendar_year', 'starting_year', 'map_x', 'map_y', 'max_companies'];
+    const ints = ['minutes_per_calendar_year', 'starting_year', 'map_x', 'map_y', 'max_companies', 'actions_per_day'];
     for (const [k, v] of Object.entries(patch)) {
       if (!(k in DEFAULT_SETTINGS)) continue;
       s[k] = ints.includes(k) ? Number(v) : v;
@@ -58,6 +64,7 @@ export class Game extends EventEmitter {
     s.map_x = Math.min(12, Math.max(6, s.map_x | 0));
     s.map_y = Math.min(12, Math.max(6, s.map_y | 0));
     s.max_companies = Math.min(15, Math.max(1, s.max_companies | 0));
+    s.actions_per_day = Math.min(100000, Math.max(0, s.actions_per_day | 0)); // 0 = sin límite
     this.settings = s;
     fs.writeFileSync(this.settingsFile, JSON.stringify(s, null, 2));
     return s;
@@ -114,6 +121,7 @@ export class Game extends EventEmitter {
     if (this.proc) throw new Error('El servidor ya está en marcha');
     if (!fs.existsSync(this.bin)) throw new Error(`Falta ${this.bin}; ejecuta scripts/build-server.sh`);
     this.writeConfig();
+    this.mapDirty = true;
     const args = ['-D', '-c', path.join(this.dataDir, 'openttd.cfg'), '-x'];
     if (save) {
       const file = path.join(this.dataDir, 'save', path.normalize(save));
@@ -134,6 +142,7 @@ export class Game extends EventEmitter {
       this.clients = [];
       this.companies = [];
       this.date = null;
+      this.actionsSynced = false;
       const pending = [this.current, ...this.queue].filter(Boolean);
       if (this.current) this.finish(this.current);
       this.queue = [];
@@ -235,7 +244,7 @@ export class Game extends EventEmitter {
       .filter((c) => c.ip !== 'server');
 
     this.companies = (await this.command('companies'))
-      .map((l) => l.match(/^#:(\d+)\((\w+)\) Company Name: '(.*)'\s+Year Founded: (\d+)\s+Money: (-?\d+)\s+Loan: (\d+)\s+Value: (-?\d+)\s+\(T:(\d+), R:(\d+), P:(\d+), S:(\d+)\)/))
+      .map((l) => l.match(/^#:(\d+)\(([^)]+)\) Company Name: '(.*)'\s+Year Founded: (\d+)\s+Money: (-?\d+)\s+Loan: (\d+)\s+Value: (-?\d+)\s+\(T:(\d+), R:(\d+), P:(\d+), S:(\d+)\)/))
       .filter(Boolean)
       .map(([, id, colour, name, founded, money, loan, value, t, r, p, s]) => ({
         id: Number(id), colour, name, founded: Number(founded),
@@ -244,6 +253,108 @@ export class Game extends EventEmitter {
       }));
 
     await this.enforcePlayers();
+    await this.syncActions();
+    await this.refreshMap();
+  }
+
+  // El mapa se regenera cada hora en punto, y al cargar una partida.
+  async refreshMap() {
+    if (this.generatingMap || this.date === null) return;
+    const hour = (t) => Math.floor(t / 3600000);
+    if (!this.mapDirty && this.mapInfo && hour(this.mapInfo.time) === hour(Date.now())) return;
+    this.generatingMap = true;
+    try {
+      await this.generateMap();
+      this.mapDirty = false;
+    } catch (e) {
+      this.addLog(`No se pudo generar el mapa: ${e.message}`);
+      this.mapDirty = false; // se reintenta en la próxima hora
+    } finally {
+      this.generatingMap = false;
+    }
+  }
+
+  // --- Acciones ---------------------------------------------------------------------
+  // Construir o destruir en el mapa cuesta una acción. El servidor de juego lleva la cuenta
+  // por empresa (y rechaza al llegar a 0); aquí se guarda por cuenta, para que sobreviva a
+  // reinicios y a cambios de empresa, y se restablece cada día a las 0:00 (hora local).
+
+  get maxActions() {
+    return this.settings.actions_per_day > 0 ? this.settings.actions_per_day : 'unlimited';
+  }
+
+  localDay() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  nextRestore() {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime();
+  }
+
+  // Acciones que le quedan a una cuenta (null = sin límite).
+  actionsLeft(name) {
+    if (!(this.settings.actions_per_day > 0)) return null;
+    return Math.min(this.players.actionsOf(name) ?? Infinity, this.settings.actions_per_day);
+  }
+
+  async syncActions() {
+    const P = this.players;
+    let lastRestore = null;
+    try {
+      lastRestore = JSON.parse(fs.readFileSync(this.actionsFile, 'utf8')).lastRestore;
+    } catch { /* primera vez */ }
+    const today = this.localDay();
+    const restore = lastRestore !== null && lastRestore !== today;
+    if (lastRestore !== today) fs.writeFileSync(this.actionsFile, JSON.stringify({ lastRestore: today }));
+    if (restore) {
+      P.restoreAllActions();
+      this.addLog('ACTIONS RESTORE: acciones restablecidas');
+    }
+
+    if (!this.actionsSynced || restore) {
+      // El servidor de juego arranca con el valor por defecto: se le dan los valores guardados.
+      await this.command(`actions_default ${this.maxActions}`);
+      for (const c of this.companies) {
+        const owner = P.ownerOf(c.id);
+        const left = owner ? this.actionsLeft(owner) : null;
+        await this.command(`actions_set ${c.id} ${left ?? this.maxActions}`);
+      }
+      this.actionsSynced = true;
+      if (restore) await this.command('say "ACTIONS RESTORE: tus acciones se han restablecido"').catch(() => {});
+      return;
+    }
+    for (const line of await this.command('actions')) {
+      const m = line.match(/^Actions company (\d+): (-?\d+)$/);
+      const owner = m && P.ownerOf(Number(m[1]));
+      if (owner && Number(m[2]) >= 0) P.setActions(owner, Number(m[2]));
+    }
+  }
+
+  // --- Mapa -------------------------------------------------------------------------
+
+  loadMapInfo() {
+    try {
+      return JSON.parse(fs.readFileSync(this.mapFile + '.json', 'utf8'));
+    } catch {
+      return null;
+    }
+  }
+
+  // Vuelca el mapa del juego en marcha y lo convierte en imagen (un píxel por casilla).
+  async generateMap() {
+    const raw = path.join(this.dataDir, 'map.dump');
+    await this.command(`dump_map ${raw}`, 60000);
+    const { width, height, png } = renderMap(raw, this.companies);
+    fs.writeFileSync(this.mapFile, png);
+    this.mapInfo = {
+      time: Date.now(), width, height, date: this.date,
+      companies: this.companies.map((c) => ({ id: c.id, name: c.name, colour: c.colour })),
+    };
+    fs.writeFileSync(this.mapFile + '.json', JSON.stringify(this.mapInfo));
+    fs.rmSync(raw, { force: true });
+    return this.mapInfo;
   }
 
   // Solo juegan los usuarios con sesión abierta en el cliente web, y con su nombre de usuario:
@@ -272,6 +383,8 @@ export class Game extends EventEmitter {
         target = mine;
       } else if (c.company !== 255 && owner === null) {
         P.setCompany(c.name, c.company); // primera empresa del jugador: se vincula
+        const left = this.actionsLeft(c.name);
+        await this.command(`actions_set ${c.company} ${left ?? this.maxActions}`).catch(() => {});
         this.addLog(`Empresa ${c.company} vinculada a '${c.name}'`);
         continue;
       } else if (owner !== null && owner.toLowerCase() !== c.name.toLowerCase()) {
@@ -291,6 +404,7 @@ export class Game extends EventEmitter {
       clients: this.clients,
       companies: this.companies,
       settings: this.settings,
+      map: this.mapInfo,
       saves: this.saves(),
     };
   }

@@ -3,6 +3,7 @@
 # Dependencias Ubuntu: scripts/install-deps-ubuntu.sh (GCC >= 12)
 source "$(dirname "$0")/common.sh"
 "$ROOT/scripts/fetch-source.sh"
+apply_patches
 mkdir -p "$BUILD_DIR/server"
 reset_cmake_cache "$BUILD_DIR/server"
 cmake -S "$SRC_DIR" -B "$BUILD_DIR/server" \

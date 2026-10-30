@@ -75,6 +75,16 @@ OpenTTD no tiene cuentas de usuario, así que las gestiona el servidor web
   (`runtime/users.json`) y en las siguientes entradas el servidor lo mueve a ella (entra como
   espectador y se le traslada en ≤ 2 s); nunca entra en la de otro. Si la empresa desaparece
   (quiebra), se desvincula y la siguiente entrada crea una nueva.
+- **Acciones:** cada vez que un jugador construye o destruye algo en el mapa (cualquier orden de
+  construcción de terreno: vías, carreteras, estaciones, terraformar, árboles, demoler…) gasta una
+  acción; comprar vehículos no cuenta. Sin acciones, el servidor rechaza la orden y avisa por chat.
+  Todos los días a las 0:00 (hora local del servidor) llega el *ACTIONS RESTORE* y se recuperan
+  todas. Se configuran en el panel (*Acciones por día*, 0 = sin límite) y el jugador ve el
+  contador sobre el juego. El límite está en el propio servidor de juego
+  (`patches/service-server.patch`), por eso `build-server.sh` también aplica parches.
+- **Mapa:** el panel muestra el mapa (un píxel por casilla: color de empresa, blanco = estaciones,
+  negro = industrias), regenerado cada hora y al cargar una partida. Lo vuelca el servidor de juego
+  con el comando de consola `dump_map` y lo convierte en PNG `webserver/gamemap.js`.
 - Las cuentas se crean, cambian y borran en el panel de administración.
 - Las empresas se protegen solas: en OpenTTD 15 solo quien la fundó (y quien
   esa persona autorice) puede entrar en ella.

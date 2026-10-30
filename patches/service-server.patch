@@ -1,0 +1,264 @@
+diff --git a/src/command.cpp b/src/command.cpp
+index ce4a948..094424b 100644
+--- a/src/command.cpp
++++ b/src/command.cpp
+@@ -122,6 +122,19 @@ CommandFlags GetCommandFlags(Commands cmd)
+ 	return _command_proc_table[cmd].flags;
+ }
+ 
++/**
++ * Get the type (landscape construction, vehicle management...) of a command.
++ * openttd-service: used to count "build/destroy" actions per company.
++ * @param cmd The command
++ * @return The type of the command
++ */
++CommandType GetCommandType(Commands cmd)
++{
++	assert(IsValidCommand(cmd));
++
++	return _command_proc_table[cmd].type;
++}
++
+ /**
+  * This function mask the parameter with CMD_ID_MASK and returns
+  * the name which belongs to the given command.
+diff --git a/src/command_func.h b/src/command_func.h
+index ecbaba2..8ddbcb0 100644
+--- a/src/command_func.h
++++ b/src/command_func.h
+@@ -32,6 +32,7 @@ bool IsNetworkRegisteredCallback(CommandCallback *callback);
+ 
+ bool IsValidCommand(Commands cmd);
+ CommandFlags GetCommandFlags(Commands cmd);
++CommandType GetCommandType(Commands cmd); // openttd-service
+ std::string_view GetCommandName(Commands cmd);
+ bool IsCommandAllowedWhilePaused(Commands cmd);
+ 
+diff --git a/src/company_cmd.cpp b/src/company_cmd.cpp
+index 501cee2..c285b9a 100644
+--- a/src/company_cmd.cpp
++++ b/src/company_cmd.cpp
+@@ -611,6 +611,7 @@ Company *DoStartupNewCompany(bool is_ai, CompanyID company = CompanyID::Invalid(
+ 	}
+ 
+ 	c->colour = colour;
++	ServiceActionsSet(c->index, INT32_MIN); // openttd-service: fresh action budget
+ 
+ 	ResetCompanyLivery(c);
+ 	_company_colours[c->index] = c->colour;
+diff --git a/src/console_cmds.cpp b/src/console_cmds.cpp
+index 230b386..062df25 100644
+--- a/src/console_cmds.cpp
++++ b/src/console_cmds.cpp
+@@ -48,6 +48,9 @@
+ 
+ #if defined(WITH_ZLIB)
+ #include "network/network_content.h"
++#include "tile_map.h"
++#include "map_func.h"
++#include <fstream>
+ #endif /* WITH_ZLIB */
+ 
+ #include "table/strings.h"
+@@ -145,6 +148,114 @@ static inline bool NetworkAvailable(bool echo)
+  * Check whether we are a server.
+  * @return Are we a server? True when yes, false otherwise.
+  */
++/* openttd-service: action budget and map dump, driven by the web server through the console. */
++/** Number of actions: a non-negative number, or "unlimited" (-1). */
++static std::optional<int32_t> ServiceParseActions(std::string_view arg)
++{
++	if (arg == "unlimited") return -1;
++	return ParseType<int32_t>(arg);
++}
++
++static bool ConActions(std::span<std::string_view> argv)
++{
++	if (argv.empty()) {
++		IConsolePrint(CC_HELP, "Show the actions left of each company. Usage: 'actions'.");
++		return true;
++	}
++	for (const Company *c : Company::Iterate()) {
++		IConsolePrint(CC_DEFAULT, "Actions company {}: {}", c->index.base() + 1, ServiceActionsLeft(c->index));
++	}
++	return true;
++}
++
++static bool ConActionsSet(std::span<std::string_view> argv)
++{
++	if (argv.size() != 3) {
++		IConsolePrint(CC_HELP, "Set the actions left of a company. Usage: 'actions_set <company-id> <n>' ('unlimited', or 'default' for the default).");
++		return true;
++	}
++	auto company = ParseType<uint8_t>(argv[1]);
++	if (!company.has_value() || *company < 1 || *company > MAX_COMPANIES) {
++		IConsolePrint(CC_ERROR, "The given company-id is not valid.");
++		return true;
++	}
++	if (argv[2] == "default") {
++		ServiceActionsSet(CompanyID(*company - 1), INT32_MIN);
++		return true;
++	}
++	auto n = ServiceParseActions(argv[2]);
++	if (!n.has_value()) {
++		IConsolePrint(CC_ERROR, "The given number is not valid.");
++		return true;
++	}
++	ServiceActionsSet(CompanyID(*company - 1), *n);
++	return true;
++}
++
++static bool ConActionsDefault(std::span<std::string_view> argv)
++{
++	if (argv.size() != 2) {
++		IConsolePrint(CC_HELP, "Set the default actions of companies. Usage: 'actions_default <n>' ('unlimited' for no limit).");
++		return true;
++	}
++	auto n = ServiceParseActions(argv[1]);
++	if (!n.has_value()) {
++		IConsolePrint(CC_ERROR, "The given number is not valid.");
++		return true;
++	}
++	ServiceActionsSetDefault(*n);
++	return true;
++}
++
++/** One byte per tile: 0 land, 1 water, 2 house/town road, 3 station, 4 industry, 16 + company index if company-owned. */
++static uint8_t ServiceMapCode(TileIndex tile)
++{
++	switch (GetTileType(tile)) {
++		case MP_VOID: return 1;
++		case MP_HOUSE: return 2;
++		case MP_STATION: return 3;
++		case MP_INDUSTRY: return 4;
++		case MP_WATER: {
++			Owner o = GetTileOwner(tile);
++			return Company::IsValidID(o) ? 16 + o.base() : 1;
++		}
++		case MP_RAILWAY:
++		case MP_ROAD:
++		case MP_TUNNELBRIDGE:
++		case MP_OBJECT: {
++			Owner o = GetTileOwner(tile);
++			if (Company::IsValidID(o)) return 16 + o.base();
++			return o == OWNER_TOWN ? 2 : 0;
++		}
++		default: return 0;
++	}
++}
++
++static bool ConDumpMap(std::span<std::string_view> argv)
++{
++	if (argv.size() != 2) {
++		IConsolePrint(CC_HELP, "Write the map as a file: u32 width, u32 height (little endian) and one byte per tile. Usage: 'dump_map <file>'.");
++		return true;
++	}
++	std::ofstream out(std::string(argv[1]), std::ios::binary | std::ios::trunc);
++	if (!out) {
++		IConsolePrint(CC_ERROR, "Cannot write the file.");
++		return true;
++	}
++	uint32_t size[2] = {Map::SizeX(), Map::SizeY()};
++	for (uint32_t v : size) {
++		char b[4] = {static_cast<char>(v), static_cast<char>(v >> 8), static_cast<char>(v >> 16), static_cast<char>(v >> 24)};
++		out.write(b, 4);
++	}
++	std::vector<char> row(Map::SizeX());
++	for (uint y = 0; y < Map::SizeY(); y++) {
++		for (uint x = 0; x < Map::SizeX(); x++) row[x] = static_cast<char>(ServiceMapCode(TileXY(x, y)));
++		out.write(row.data(), row.size());
++	}
++	IConsolePrint(CC_DEFAULT, "Map written: {}x{}", Map::SizeX(), Map::SizeY());
++	return true;
++}
++
+ static ConsoleHookResult ConHookServerOnly(bool echo)
+ {
+ 	if (!NetworkAvailable(echo)) return CHR_DISALLOW;
+@@ -2957,6 +3068,10 @@ void IConsoleStdLibRegister()
+ 
+ 	IConsole::CmdRegister("connect",                 ConNetworkConnect,   ConHookClientOnly);
+ 	IConsole::CmdRegister("clients",                 ConNetworkClients,   ConHookNeedNetwork);
++	IConsole::CmdRegister("actions",                 ConActions,          ConHookServerOnly);
++	IConsole::CmdRegister("actions_set",             ConActionsSet,       ConHookServerOnly);
++	IConsole::CmdRegister("actions_default",         ConActionsDefault,   ConHookServerOnly);
++	IConsole::CmdRegister("dump_map",                ConDumpMap,          ConHookServerOnly);
+ 	IConsole::CmdRegister("status",                  ConStatus,           ConHookServerOnly);
+ 	IConsole::CmdRegister("server_info",             ConServerInfo,       ConHookServerOnly);
+ 	IConsole::AliasRegister("info",                  "server_info");
+diff --git a/src/network/network_func.h b/src/network/network_func.h
+index 4ba84b1..61affac 100644
+--- a/src/network/network_func.h
++++ b/src/network/network_func.h
+@@ -79,6 +79,12 @@ void NetworkServerSendRcon(ClientID client_id, TextColour colour_code, std::stri
+ void NetworkServerSendChat(NetworkAction action, DestType type, int dest, std::string_view msg, ClientID from_id, int64_t data = 0, bool from_admin = false);
+ void NetworkServerSendExternalChat(std::string_view source, TextColour colour, std::string_view user, std::string_view msg);
+ 
++/* openttd-service: per-company budget of build/destroy actions. A negative value is "unlimited". */
++int ServiceActionsLeft(CompanyID company);
++void ServiceActionsSet(CompanyID company, int actions);
++void ServiceActionsSetDefault(int actions);
++bool ServiceActionsConsume(CompanyID company);
++
+ void NetworkServerKickClient(ClientID client_id, std::string_view reason);
+ uint NetworkServerKickOrBanIP(ClientID client_id, bool ban, std::string_view reason);
+ uint NetworkServerKickOrBanIP(std::string_view ip, bool ban, std::string_view reason);
+diff --git a/src/network/network_server.cpp b/src/network/network_server.cpp
+index 20c6edb..e08bfe1 100644
+--- a/src/network/network_server.cpp
++++ b/src/network/network_server.cpp
+@@ -1051,6 +1051,40 @@ NetworkRecvStatus ServerNetworkGameSocketHandler::Receive_CLIENT_MAP_OK(Packet &
+  * The client has done a command and wants us to handle it
+  * @param p the packet in which the command was sent
+  */
++/* openttd-service: per-company budget of build/destroy actions (landscape construction commands). */
++static constexpr int ACTIONS_UNSET = INT32_MIN;
++static std::array<int, MAX_COMPANIES> _service_actions = [] { std::array<int, MAX_COMPANIES> a; a.fill(ACTIONS_UNSET); return a; }();
++static int _service_actions_default = -1;
++
++/** Actions left for a company: -1 if unlimited. */
++int ServiceActionsLeft(CompanyID company)
++{
++	if (company.base() >= MAX_COMPANIES) return -1;
++	int &a = _service_actions[company.base()];
++	return a == ACTIONS_UNSET ? _service_actions_default : a;
++}
++
++void ServiceActionsSet(CompanyID company, int actions)
++{
++	if (company.base() < MAX_COMPANIES) _service_actions[company.base()] = actions;
++}
++
++/** Budget of companies without an explicit value, and of all companies that have not been set yet. */
++void ServiceActionsSetDefault(int actions)
++{
++	_service_actions_default = actions;
++}
++
++/** Spend one action. @return false if the company has none left. */
++bool ServiceActionsConsume(CompanyID company)
++{
++	int left = ServiceActionsLeft(company);
++	if (left < 0) return true;
++	if (left == 0) return false;
++	_service_actions[company.base()] = left - 1;
++	return true;
++}
++
+ NetworkRecvStatus ServerNetworkGameSocketHandler::Receive_CLIENT_COMMAND(Packet &p)
+ {
+ 	/* The client was never joined.. so this is impossible, right?
+@@ -1131,6 +1165,13 @@ NetworkRecvStatus ServerNetworkGameSocketHandler::Receive_CLIENT_COMMAND(Packet
+ 
+ 	if (GetCommandFlags(cp.cmd).Test(CommandFlag::ClientID)) NetworkReplaceCommandClientId(cp, this->client_id);
+ 
++	/* openttd-service: building or destroying anything on the map costs one action. */
++	if (ci->client_id != CLIENT_ID_SERVER && Company::IsValidID(cp.company) &&
++			GetCommandType(cp.cmd) == CommandType::LandscapeConstruction && !ServiceActionsConsume(cp.company)) {
++		NetworkServerSendChat(NETWORK_ACTION_SERVER_MESSAGE, DESTTYPE_CLIENT, ci->client_id, "You have no actions left. They are restored every day at 0:00.", CLIENT_ID_SERVER);
++		return NETWORK_RECV_STATUS_OKAY;
++	}
++
+ 	this->incoming_queue.push_back(std::move(cp));
+ 	return NETWORK_RECV_STATUS_OKAY;
+ }

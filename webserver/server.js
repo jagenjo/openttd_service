@@ -52,6 +52,12 @@ async function handleAuth(req, res, pathname) {
     } catch (e) {
       json(401, { error: e.message });
     }
+  } else if (pathname === '/auth/me' && req.method === 'GET') {
+    // Datos para el contador de acciones que se muestra sobre el juego.
+    const user = currentUser(req);
+    if (!user) return json(401, { error: 'Login required' });
+    const max = game.settings.actions_per_day;
+    json(200, { user, max: max > 0 ? max : null, actions: game.actionsLeft(user), nextRestore: game.nextRestore() }, { 'Cache-Control': 'no-store' });
   } else if (pathname === '/auth/logout' && req.method === 'POST') {
     users.logout(sessionToken(req));
     json(200, { ok: true }, { 'Set-Cookie': `${COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0` });
@@ -145,6 +151,9 @@ const game = new Game({
     companyOf: (name) => users.companyOf(name),
     ownerOf: (id) => users.ownerOf(id),
     setCompany: (name, id) => users.setCompany(name, id),
+    actionsOf: (name) => users.actionsOf(name),
+    setActions: (name, n) => users.setActions(name, n),
+    restoreAllActions: () => users.restoreAllActions(),
   },
 });
 
@@ -197,6 +206,12 @@ const api = {
     if (owner) users.setCompany(owner, null);
     await game.refresh().catch(() => {});
   },
+  'POST /api/map/refresh': async () => ({ map: await game.generateMap() }),
+  'POST /api/actions/restore': async () => {
+    users.restoreAllActions();
+    game.actionsSynced = false; // se vuelve a dar a cada empresa su máximo en la próxima pasada
+    game.addLog('Acciones restablecidas desde el panel');
+  },
   'POST /api/kick': async (b) => game.command(`kick ${Number(b.id)}`),
   'POST /api/command': async (b) => {
     const lines = await game.command(String(b.command || ''), 10000, { log: true });
@@ -214,6 +229,13 @@ async function handleAdmin(req, res) {
   if (url.pathname === '/admin' || url.pathname === '/admin/') {
     res.writeHead(200, { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-cache' });
     fs.createReadStream(path.join(ADMIN_DIR, 'index.html')).pipe(res);
+    return;
+  }
+  if (req.method === 'GET' && url.pathname === '/api/map.png') {
+    fs.readFile(game.mapFile, (err, png) => {
+      if (err) return res.writeHead(404).end();
+      res.writeHead(200, { 'Content-Type': MIME['.png'], 'Cache-Control': 'no-cache' }).end(png);
+    });
     return;
   }
   const handler = api[`${req.method} ${url.pathname}`];

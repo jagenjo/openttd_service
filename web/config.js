@@ -33,4 +33,30 @@
     document.getElementById('d-out').onclick = () =>
       fetch('/auth/logout', { method: 'POST' }).finally(() => (location.href = '/login'));
   };
+
+  // Contador de acciones (construir/destruir) sobre el juego.
+  window.addEventListener('DOMContentLoaded', function () {
+    const box = document.createElement('div');
+    box.style.cssText = 'position:fixed;bottom:30px;right:8px;z-index:5;pointer-events:none;display:none;' +
+      'font:13px Tahoma,Arial,sans-serif;color:#fcfcfc;background:#4a6a8a;border:1px solid #a8a8a8;padding:2px 8px;text-shadow:1px 1px #101010';
+    document.body.appendChild(box);
+    let me = null;
+    function draw() {
+      if (!me || me.actions === null) return (box.style.display = 'none');
+      const min = Math.max(0, Math.round((me.nextRestore - Date.now()) / 60000));
+      box.textContent = `ACCIONES: ${me.actions} / ${me.max} · se restauran en ${Math.floor(min / 60)} h ${min % 60} min`;
+      box.style.background = me.actions === 0 ? '#e00000' : '#4a6a8a';
+      box.style.display = 'block';
+    }
+    async function poll() {
+      try {
+        const r = await fetch('/auth/me', { cache: 'no-store' });
+        if (r.ok) me = await r.json();
+      } catch { /* sin red: se mantiene el último valor */ }
+      draw();
+    }
+    poll();
+    setInterval(poll, 3000);
+    setInterval(draw, 30000);
+  });
 })();

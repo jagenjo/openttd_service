@@ -68,6 +68,7 @@
     <p class="muted">Solo pueden jugar los usuarios de esta lista: entran desde el cliente web con su usuario y contraseña, y ese es su nombre en el juego.</p>
     <form class="row" id="addUser"><input id="newUser" placeholder="Usuario" maxlength="24" style="flex:1" autocomplete="off"><input id="newPass" type="text" placeholder="Contraseña (mín. 6)" style="flex:1" autocomplete="off"><button>Crear / cambiar</button></form>
     <ul class="plain" id="users"></ul>
+    <div class="row"><button id="btnRestore">Restablecer acciones ahora</button><span class="muted">Se restablecen solas cada día a las 0:00.</span></div>
     <h2 style="margin-top:16px">Conectados ahora</h2>
     <table><thead><tr><th>#</th><th>Nombre</th><th>Empresa</th><th>IP</th><th></th></tr></thead><tbody id="clients"></tbody></table>
   </section>
@@ -75,6 +76,18 @@
   <section class="wide">
     <h2>Empresas</h2>
     <table><thead><tr><th>#</th><th>Nombre</th><th>Fundada</th><th class="num">Dinero</th><th class="num">Préstamo</th><th class="num">Valor</th><th class="num">Trenes</th><th class="num">Carretera</th><th class="num">Aviones</th><th class="num">Barcos</th><th></th></tr></thead><tbody id="companies"></tbody></table>
+  </section>
+
+  <section class="wide">
+    <h2>Mapa <span class="muted" id="mapInfo" style="text-transform:none;letter-spacing:0"></span></h2>
+    <div class="row" style="align-items:flex-start;flex-wrap:nowrap">
+      <img id="mapImg" alt="Mapa del juego" style="image-rendering:pixelated;width:min(100%,640px);background:var(--bg);border:1px solid var(--line);display:none">
+      <div>
+        <ul class="plain" id="mapLegend"></ul>
+        <button id="btnMap">Regenerar ahora</button>
+        <p class="muted">Un píxel por casilla. Se regenera cada hora.</p>
+      </div>
+    </div>
   </section>
 
   <section>
@@ -92,6 +105,7 @@
         <label>Clima
           <select name="landscape"><option value="temperate">Templado</option><option value="arctic">Subártico</option><option value="tropic">Subtropical</option><option value="toyland">Juguetes</option></select></label>
         <label>Máximo de empresas <input name="max_companies" type="number" min="1" max="15"></label>
+        <label>Acciones por día (0 = sin límite) <input name="actions_per_day" type="number" min="0" max="100000"></label>
       </div>
       <p class="muted">1440 = un año de juego por día real. Los cambios se aplican al empezar una nueva partida o al reanudar (contraseña y nombre).</p>
       <button class="primary">Guardar configuración</button>
@@ -113,6 +127,8 @@ const money = (n) => '£' + n.toLocaleString('es-ES');
 let status = null;
 let users = [];
 let online = [];
+let mapTime = null;
+const COLOURS = { 'Dark Blue':'#22368c', 'Pale Green':'#88dc78', Pink:'#fa82be', Yellow:'#fadc28', Red:'#dc1e1e', 'Light Blue':'#5aaaf0', Green:'#1ea032', 'Dark Green':'#145a28', Blue:'#285adc', Cream:'#ebd7a0', Mauve:'#a0648c', Purple:'#8228aa', Orange:'#fa8c14', Brown:'#82501e', Grey:'#8c8c8c', White:'#fafafa' };
 let settingsLoaded = false;
 
 function toast(msg) {
@@ -141,7 +157,7 @@ function render() {
   $('#saves').innerHTML = s.saves.map((x) => `<li><span>${esc(x.name)} <span class="muted">${new Date(x.mtime).toLocaleString('es-ES')}</span></span>
     <button data-load="${esc(x.name)}" ${s.running ? 'disabled' : ''}>Cargar</button></li>`).join('') || '<li class="muted">Ninguna todavía</li>';
 
-  $('#users').innerHTML = users.map((u) => `<li><span>${esc(u.name)} <span class="muted">${u.company ? `· empresa ${u.company}` : '· sin empresa'}${online.includes(u.name.toLowerCase()) ? ' · conectado' : ''}</span></span><button class="danger" data-deluser="${esc(u.name)}">Borrar</button></li>`).join('')
+  $('#users').innerHTML = users.map((u) => `<li><span>${esc(u.name)} <span class="muted">${u.company ? `· empresa ${u.company}` : '· sin empresa'}${status.settings.actions_per_day > 0 ? ` · acciones ${u.actions ?? status.settings.actions_per_day}/${status.settings.actions_per_day}` : ''}${online.includes(u.name.toLowerCase()) ? ' · conectado' : ''}</span></span><button class="danger" data-deluser="${esc(u.name)}">Borrar</button></li>`).join('')
     || '<li class="muted">Sin cuentas: nadie puede entrar</li>';
 
   $('#clients').innerHTML = s.clients.map((c) => `<tr><td>${c.id}</td><td>${esc(c.name)}</td><td>${c.company === 255 ? 'Espectador' : c.company}</td><td>${esc(c.ip)}</td>
@@ -153,10 +169,25 @@ function render() {
     <td><button class="danger" data-delcompany="${c.id}" data-name="${esc(c.name)}">Eliminar</button></td></tr>`).join('')
     || '<tr><td colspan="11" class="muted">Sin empresas</td></tr>';
 
+  renderMap(s.map);
+
   if (!settingsLoaded) {
     for (const el of $('#settings').elements) if (el.name) el.value = s.settings[el.name];
     settingsLoaded = true;
   }
+}
+
+function renderMap(m) {
+  if (!m) { $('#mapInfo').textContent = '· todavía no generado'; return; }
+  if (m.time !== mapTime) {
+    mapTime = m.time;
+    $('#mapImg').src = `/api/map.png?t=${m.time}`;
+    $('#mapImg').style.display = 'block';
+  }
+  $('#mapInfo').textContent = `· ${m.width}×${m.height} · generado ${new Date(m.time).toLocaleTimeString('es-ES')}${m.date ? ` · fecha de juego ${m.date}` : ''}`;
+  const sw = (c, t) => `<li><span><span style="display:inline-block;width:12px;height:12px;background:${c};border:1px solid var(--line);margin-right:6px;vertical-align:-2px"></span>${esc(t)}</span></li>`;
+  $('#mapLegend').innerHTML = sw('#ffffff', 'Estaciones') + sw('#000000', 'Industrias') + sw('#787870', 'Pueblos') + sw('#1c345c', 'Agua')
+    + m.companies.map((c) => sw(COLOURS[c.colour] || '#f0f', `${c.name} (empresa ${c.id})`)).join('');
 }
 
 async function refresh() {
@@ -173,6 +204,8 @@ async function refresh() {
 
 $('#btnStart').onclick = () => post('/api/start', { save: status.saves[0].name }).then(refresh);
 $('#btnNew').onclick = () => confirm('¿Empezar una partida nueva? La actual se guarda antes como last.sav y luego se sustituye.') && post('/api/newgame').then(refresh);
+$('#btnMap').onclick = () => post('/api/map/refresh').then(() => { toast('Mapa regenerado'); refresh(); });
+$('#btnRestore').onclick = () => confirm('¿Restablecer ahora las acciones de todos los jugadores?') && post('/api/actions/restore').then(() => { toast('Acciones restablecidas'); refresh(); });
 $('#btnStop').onclick = () => post('/api/stop').then(refresh);
 $('#btnPause').onclick = () => post('/api/pause').then(() => toast('Pausado'));
 $('#btnUnpause').onclick = () => post('/api/unpause').then(() => toast('En marcha'));

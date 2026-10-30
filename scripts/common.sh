@@ -33,3 +33,13 @@ reset_cmake_cache() {
     rm -rf "$dir/CMakeCache.txt" "$dir/CMakeFiles"
   fi
 }
+
+# Aplica los parches de patches/*.patch al código fuente (idempotente).
+apply_patches() {
+  local p
+  for p in "$ROOT"/patches/*.patch; do
+    if ! git -C "$SRC_DIR" apply -R --check "$p" 2>/dev/null; then
+      git -C "$SRC_DIR" apply "$p"
+    fi
+  done
+}

@@ -15,10 +15,8 @@ source "$EMSDK/emsdk_env.sh" >/dev/null 2>&1
 # Port de liblzma que OpenTTD necesita y emscripten no trae.
 cp "$SRC_DIR/os/emscripten/ports/liblzma.py" "$EMSDK/upstream/emscripten/tools/ports/contrib/liblzma.py"
 
-# Parche del cliente web (hooks para config.js). Idempotente.
-if ! git -C "$SRC_DIR" apply -R --check "$ROOT/patches/web-client.patch" 2>/dev/null; then
-  git -C "$SRC_DIR" apply "$ROOT/patches/web-client.patch"
-fi
+# Parches (cliente web sin menú, límite de acciones...). Idempotente.
+apply_patches
 
 # 1) Herramientas nativas que se usan durante la compilación (strgen, settingsgen...).
 reset_cmake_cache "$BUILD_DIR/web-host"

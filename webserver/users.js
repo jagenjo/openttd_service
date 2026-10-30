@@ -32,7 +32,7 @@ export class Users {
   }
 
   list() {
-    return Object.values(this.users).map((u) => ({ name: u.name, created: u.created, company: u.company ?? null }));
+    return Object.values(this.users).map((u) => ({ name: u.name, created: u.created, company: u.company ?? null, actions: u.actions ?? null }));
   }
 
   set(name, password) {
@@ -41,7 +41,7 @@ export class Users {
     if (String(password || '').length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres');
     const salt = crypto.randomBytes(16).toString('hex');
     const prev = this.users[this.key(name)];
-    this.users[this.key(name)] = { name: prev?.name ?? name, salt, hash: hash(password, salt), created: prev?.created ?? Date.now(), ...(prev?.company ? { company: prev.company } : {}) };
+    this.users[this.key(name)] = { name: prev?.name ?? name, salt, hash: hash(password, salt), created: prev?.created ?? Date.now(), ...(prev?.company ? { company: prev.company } : {}), ...(prev?.actions != null ? { actions: prev.actions } : {}) };
     this.save();
     this.dropSessions(name);
   }
@@ -66,6 +66,24 @@ export class Users {
     if (!u || (u.company ?? null) === company) return;
     if (company === null) delete u.company;
     else u.company = company;
+    this.save();
+  }
+
+  // Acciones restantes de la cuenta; null = todas las del día.
+  actionsOf(name) {
+    return this.users[this.key(name)]?.actions ?? null;
+  }
+
+  setActions(name, n) {
+    const u = this.users[this.key(name)];
+    if (!u || (u.actions ?? null) === n) return;
+    if (n === null) delete u.actions;
+    else u.actions = n;
+    this.save();
+  }
+
+  restoreAllActions() {
+    for (const u of Object.values(this.users)) delete u.actions;
     this.save();
   }
 
