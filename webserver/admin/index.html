@@ -268,8 +268,7 @@ function renderMap(m) {
   }
   $('#mapInfo').textContent = `· ${m.width}×${m.height} · generado ${new Date(m.time).toLocaleTimeString('es-ES')}${m.date ? ` · fecha de juego ${m.date}` : ''}`;
   const sw = (c, t) => `<li><span><span style="display:inline-block;width:12px;height:12px;background:${c};border:1px solid var(--line);margin-right:6px;vertical-align:-2px"></span>${esc(t)}</span></li>`;
-  $('#mapLegend').innerHTML = sw('#ffffff', 'Estaciones') + sw('#000000', 'Industrias') + sw('#787870', 'Pueblos') + sw('#1c345c', 'Agua')
-    + m.companies.map((c) => sw(COLOURS[c.colour] || '#f0f', `${c.name} (empresa ${c.id})`)).join('');
+  $('#mapLegend').innerHTML = m.companies.map((c) => sw(COLOURS[c.colour] || '#f0f', `${c.name} (empresa ${c.id})`)).join('');
 }
 
 async function refresh() {
