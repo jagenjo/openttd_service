@@ -65,7 +65,12 @@ export class Game extends EventEmitter {
     s.map_y = Math.min(12, Math.max(6, s.map_y | 0));
     s.max_companies = Math.min(15, Math.max(1, s.max_companies | 0));
     s.actions_per_day = Math.min(100000, Math.max(0, s.actions_per_day | 0)); // 0 = sin límite
+    const oldMax = this.settings.actions_per_day;
     this.settings = s;
+    if (s.actions_per_day !== oldMax) {
+      this.players.adjustActions(oldMax, s.actions_per_day);
+      this.actionsSynced = false; // se vuelve a dar a cada empresa su valor en la próxima pasada
+    }
     fs.writeFileSync(this.settingsFile, JSON.stringify(s, null, 2));
     return s;
   }
@@ -84,11 +89,7 @@ export class Game extends EventEmitter {
     };
     cfg.network = { ...cfg.network, max_companies: s.max_companies };
     fs.writeFileSync(path.join(this.dataDir, 'openttd.cfg'), stringifyIni(cfg));
-    // El puerto del juego solo escucha en local: se entra por el puente web (que exige login).
-    // GAME_PUBLIC=1 lo abre a todas las interfaces.
-    const priv = { network: { server_name: s.server_name } };
-    if (!process.env.GAME_PUBLIC) priv.server_bind_addresses = { '127.0.0.1': null };
-    fs.writeFileSync(path.join(this.dataDir, 'private.cfg'), stringifyIni(priv));
+    fs.writeFileSync(path.join(this.dataDir, 'private.cfg'), stringifyIni({ network: { server_name: s.server_name } }));
     fs.writeFileSync(path.join(this.dataDir, 'secrets.cfg'), stringifyIni({ network: { server_password: s.server_password } }), { mode: 0o600 });
   }
 
@@ -122,7 +123,10 @@ export class Game extends EventEmitter {
     if (!fs.existsSync(this.bin)) throw new Error(`Falta ${this.bin}; ejecuta scripts/build-server.sh`);
     this.writeConfig();
     this.mapDirty = true;
-    const args = ['-D', '-c', path.join(this.dataDir, 'openttd.cfg'), '-x'];
+    // El puerto del juego solo escucha en local: se entra por el puente web (que exige login).
+    // GAME_PUBLIC=1 lo abre a todas las interfaces.
+    const bind = process.env.GAME_PUBLIC ? '-D' : `-D127.0.0.1:${process.env.GAME_PORT || 3979}`;
+    const args = [bind, '-c', path.join(this.dataDir, 'openttd.cfg'), '-x'];
     if (save) {
       const file = path.join(this.dataDir, 'save', path.normalize(save));
       if (!file.startsWith(path.join(this.dataDir, 'save') + path.sep) || !fs.existsSync(file)) {

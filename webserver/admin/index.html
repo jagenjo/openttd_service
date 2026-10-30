@@ -37,6 +37,11 @@
   ul.plain li { display:flex; justify-content:space-between; align-items:center; padding:4px 0; border-bottom:1px solid var(--line); }
   pre#log { height:260px; overflow:auto; background:var(--bg); padding:8px; border-radius:6px; font-size:12px; margin:0 0 8px; white-space:pre-wrap; }
   #toast { position:fixed; bottom:16px; right:16px; background:var(--fg); color:var(--bg); padding:8px 14px; border-radius:6px; display:none; max-width:80vw; }
+  #mapView { position:relative; width:min(100%,640px); aspect-ratio:1; overflow:hidden; border:1px solid var(--line); background:var(--bg); cursor:grab; touch-action:none; flex:none; }
+  #mapView.drag { cursor:grabbing; }
+  #mapImg { position:absolute; left:0; top:0; transform-origin:0 0; image-rendering:pixelated; user-select:none; display:none; }
+  #mapZoom { position:absolute; top:6px; right:6px; display:flex; flex-direction:column; gap:4px; }
+  #mapZoom button { padding:2px 9px; }
   .big { font-size:22px; font-weight:600; }
 </style>
 </head>
@@ -44,7 +49,7 @@
 <header>
   <h1>OpenTTD · Administración</h1>
   <span id="state" class="pill">…</span>
-  <a href="/" target="_blank">Abrir cliente web</a>
+  <a href="/play/" target="_blank">Abrir el juego</a> · <a href="/" target="_blank">Página de inicio</a>
 </header>
 <main>
   <section>
@@ -68,7 +73,13 @@
     <p class="muted">Solo pueden jugar los usuarios de esta lista: entran desde el cliente web con su usuario y contraseña, y ese es su nombre en el juego.</p>
     <form class="row" id="addUser"><input id="newUser" placeholder="Usuario" maxlength="24" style="flex:1" autocomplete="off"><input id="newPass" type="text" placeholder="Contraseña (mín. 6)" style="flex:1" autocomplete="off"><button>Crear / cambiar</button></form>
     <ul class="plain" id="users"></ul>
-    <div class="row"><button id="btnRestore">Restablecer acciones ahora</button><span class="muted">Se restablecen solas cada día a las 0:00.</span></div>
+    <h2 style="margin-top:16px">Acciones</h2>
+    <form class="row" id="actionsForm">
+      <label style="margin:0;flex:1">Acciones por día (0 = sin límite) <input name="actions_per_day" type="number" min="0" max="100000"></label>
+      <button class="primary">Guardar</button>
+    </form>
+    <div class="row" style="margin-top:8px"><button id="btnRestore" class="danger">Restablecer las acciones de todos ahora</button></div>
+    <p class="muted">Se restablecen solas cada día a las 0:00 (hora del servidor). Si cambias el máximo, a quien ya haya gastado acciones se le suma o resta la diferencia.</p>
     <h2 style="margin-top:16px">Conectados ahora</h2>
     <table><thead><tr><th>#</th><th>Nombre</th><th>Empresa</th><th>IP</th><th></th></tr></thead><tbody id="clients"></tbody></table>
   </section>
@@ -81,7 +92,10 @@
   <section class="wide">
     <h2>Mapa <span class="muted" id="mapInfo" style="text-transform:none;letter-spacing:0"></span></h2>
     <div class="row" style="align-items:flex-start;flex-wrap:nowrap">
-      <img id="mapImg" alt="Mapa del juego" style="image-rendering:pixelated;width:min(100%,640px);background:var(--bg);border:1px solid var(--line);display:none">
+      <div id="mapView" title="Arrastra para mover, rueda para zoom, doble clic para restablecer">
+        <img id="mapImg" alt="Mapa del juego" draggable="false">
+        <div id="mapZoom"><button data-zoom="1.5">+</button><button data-zoom="0.67">−</button><button data-zoom="0">⟲</button></div>
+      </div>
       <div>
         <ul class="plain" id="mapLegend"></ul>
         <button id="btnMap">Regenerar ahora</button>
@@ -105,7 +119,6 @@
         <label>Clima
           <select name="landscape"><option value="temperate">Templado</option><option value="arctic">Subártico</option><option value="tropic">Subtropical</option><option value="toyland">Juguetes</option></select></label>
         <label>Máximo de empresas <input name="max_companies" type="number" min="1" max="15"></label>
-        <label>Acciones por día (0 = sin límite) <input name="actions_per_day" type="number" min="0" max="100000"></label>
       </div>
       <p class="muted">1440 = un año de juego por día real. Los cambios se aplican al empezar una nueva partida o al reanudar (contraseña y nombre).</p>
       <button class="primary">Guardar configuración</button>
@@ -170,12 +183,63 @@ function render() {
     || '<tr><td colspan="11" class="muted">Sin empresas</td></tr>';
 
   renderMap(s.map);
+  const ai = $('#actionsForm').elements.actions_per_day;
+  if (document.activeElement !== ai) ai.value = s.settings.actions_per_day;
 
   if (!settingsLoaded) {
     for (const el of $('#settings').elements) if (el.name) el.value = s.settings[el.name];
     settingsLoaded = true;
   }
 }
+
+// Mapa: arrastrar para mover, rueda para ampliar (hacia el cursor), doble clic para ajustar.
+const mapView = { x: 0, y: 0, k: 1 };
+function applyMapView() {
+  const v = $('#mapView'), img = $('#mapImg');
+  const fit = v.clientWidth / (img.naturalWidth || 1);
+  // El mapa no puede salirse del recuadro.
+  mapView.x = Math.min(0, Math.max(v.clientWidth - fit * mapView.k * (img.naturalWidth || 1), mapView.x));
+  mapView.y = Math.min(0, Math.max(v.clientHeight - fit * mapView.k * (img.naturalHeight || 1), mapView.y));
+  img.style.transform = `translate(${mapView.x}px, ${mapView.y}px) scale(${fit * mapView.k})`;
+}
+function zoomMap(factor, cx, cy) {
+  const v = $('#mapView');
+  cx ??= v.clientWidth / 2; cy ??= v.clientHeight / 2;
+  const k = Math.min(32, Math.max(1, mapView.k * factor));
+  const real = k / mapView.k;
+  mapView.x = cx - (cx - mapView.x) * real;
+  mapView.y = cy - (cy - mapView.y) * real;
+  mapView.k = k;
+  applyMapView();
+}
+(() => {
+  const v = $('#mapView');
+  let drag = null;
+  v.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const r = v.getBoundingClientRect();
+    zoomMap(e.deltaY < 0 ? 1.25 : 0.8, e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
+  v.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('#mapZoom')) return;
+    drag = { x: e.clientX - mapView.x, y: e.clientY - mapView.y };
+    v.setPointerCapture(e.pointerId); v.classList.add('drag');
+  });
+  v.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    mapView.x = e.clientX - drag.x; mapView.y = e.clientY - drag.y;
+    applyMapView();
+  });
+  const end = () => { drag = null; v.classList.remove('drag'); };
+  v.addEventListener('pointerup', end); v.addEventListener('pointercancel', end);
+  v.addEventListener('dblclick', (e) => { if (!e.target.closest('#mapZoom')) { Object.assign(mapView, { x: 0, y: 0, k: 1 }); applyMapView(); } });
+  v.addEventListener('click', (e) => {
+    const z = e.target.dataset?.zoom;
+    if (z === '0') { Object.assign(mapView, { x: 0, y: 0, k: 1 }); applyMapView(); } else if (z) zoomMap(Number(z));
+  });
+  $('#mapImg').addEventListener('load', applyMapView);
+  window.addEventListener('resize', applyMapView);
+})();
 
 function renderMap(m) {
   if (!m) { $('#mapInfo').textContent = '· todavía no generado'; return; }
@@ -205,6 +269,10 @@ async function refresh() {
 $('#btnStart').onclick = () => post('/api/start', { save: status.saves[0].name }).then(refresh);
 $('#btnNew').onclick = () => confirm('¿Empezar una partida nueva? La actual se guarda antes como last.sav y luego se sustituye.') && post('/api/newgame').then(refresh);
 $('#btnMap').onclick = () => post('/api/map/refresh').then(() => { toast('Mapa regenerado'); refresh(); });
+$('#actionsForm').onsubmit = (e) => {
+  e.preventDefault();
+  post('/api/settings', { actions_per_day: Number(e.target.elements.actions_per_day.value) }).then(() => { toast('Acciones por día guardadas'); refresh(); });
+};
 $('#btnRestore').onclick = () => confirm('¿Restablecer ahora las acciones de todos los jugadores?') && post('/api/actions/restore').then(() => { toast('Acciones restablecidas'); refresh(); });
 $('#btnStop').onclick = () => post('/api/stop').then(refresh);
 $('#btnPause').onclick = () => post('/api/pause').then(() => toast('Pausado'));

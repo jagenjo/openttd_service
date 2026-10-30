@@ -1,7 +1,16 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 2891bee..f689de0 100644
+index 2891bee..43b2772 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
+@@ -366,7 +366,7 @@ if(EMSCRIPTEN)
+     add_definitions(-s DISABLE_EXCEPTION_CATCHING=0)
+ 
+     # Export functions to Javascript.
+-    target_link_libraries(WASM::WASM INTERFACE "-s EXPORTED_FUNCTIONS='[\"_main\", \"_em_openttd_add_server\"]' -s EXPORTED_RUNTIME_METHODS='[\"cwrap\"]'")
++    target_link_libraries(WASM::WASM INTERFACE "-s EXPORTED_FUNCTIONS='[\"_main\", \"_em_openttd_add_server\", \"_em_openttd_set_actions\"]' -s EXPORTED_RUNTIME_METHODS='[\"cwrap\"]'")
+ 
+     # Preload all the files we generate during build.
+     # As we do not compile with FreeType / FontConfig, we also have no way to
 @@ -376,6 +376,8 @@ if(EMSCRIPTEN)
      # only ship the English language.
      target_link_libraries(WASM::WASM INTERFACE "--preload-file ${CMAKE_BINARY_DIR}/baseset@/baseset")
@@ -80,3 +89,95 @@ index 7d585b0..503dbe1 100644
  			LoadIntroGame();
  			if (BaseSounds::ini_set.empty() && BaseSounds::GetUsedSet()->fallback && SoundDriver::GetInstance()->HasOutput()) {
  				ShowErrorMessage(GetEncodedString(STR_WARNING_FALLBACK_SOUNDSET), {}, WL_CRITICAL);
+diff --git a/src/statusbar_gui.cpp b/src/statusbar_gui.cpp
+index fa05885..d0a2537 100644
+--- a/src/statusbar_gui.cpp
++++ b/src/statusbar_gui.cpp
+@@ -8,6 +8,9 @@
+ /** @file statusbar_gui.cpp The GUI for the bottom status bar. */
+ 
+ #include "stdafx.h"
++#ifdef __EMSCRIPTEN__
++#	include <emscripten.h>
++#endif
+ #include "core/backup_type.hpp"
+ #include "gfx_func.h"
+ #include "news_func.h"
+@@ -53,7 +56,35 @@ static bool DrawScrollingStatusText(const NewsItem &ni, int scroll_pos, int left
+ 	return (_current_text_dir == TD_RTL) ? (pos < right - left) : (pos + width > 0);
+ }
+ 
++/** openttd-service: actions counter shown next to the money; the web page sets it through em_openttd_set_actions(). */
++static std::string _service_actions_text;
++static bool _service_actions_zero = false;
++
++#ifdef __EMSCRIPTEN__
++extern "C" {
++
++void em_openttd_set_actions(const char *text, int zero)
++{
++	_service_actions_text = text;
++	_service_actions_zero = zero != 0;
++}
++
++}
++#endif
++
++static std::string GetServiceActionsText()
++{
++	return _service_actions_text;
++}
++
++static bool GetServiceActionsEmpty()
++{
++	return _service_actions_zero;
++}
++
+ struct StatusBarWindow : Window {
++	std::string actions_text; ///< openttd-service: actions counter shown next to the money
++	bool actions_empty = false; ///< openttd-service: no actions left (shown in red)
+ 	bool saving = false;
+ 	int ticker_scroll = TICKER_STOP;
+ 
+@@ -91,6 +122,7 @@ struct StatusBarWindow : Window {
+ 				int64_t max_money = UINT32_MAX;
+ 				for (const Company *c : Company::Iterate()) max_money = std::max<int64_t>(c->money, max_money);
+ 				d = GetStringBoundingBox(GetString(STR_JUST_CURRENCY_LONG, 100LL * max_money));
++				if (!this->actions_text.empty()) d.width += GetStringBoundingBox(this->actions_text).width + WidgetDimensions::scaled.hsep_wide * 2;
+ 				break;
+ 			}
+ 
+@@ -114,6 +146,12 @@ struct StatusBarWindow : Window {
+ 				break;
+ 
+ 			case WID_S_RIGHT: {
++				if (!this->actions_text.empty()) {
++					/* openttd-service: the actions counter takes the right part of the panel. */
++					int w = GetStringBoundingBox(this->actions_text).width;
++					DrawString(tr, this->actions_text, this->actions_empty ? TC_RED : TC_YELLOW, SA_RIGHT);
++					tr.right -= w + WidgetDimensions::scaled.hsep_wide * 2;
++				}
+ 				if (_local_company == COMPANY_SPECTATOR) {
+ 					DrawString(tr, STR_STATUSBAR_SPECTATOR, TC_FROMSTRING, SA_HOR_CENTER);
+ 				} else if (_settings_game.difficulty.infinite_money) {
+@@ -201,6 +239,20 @@ struct StatusBarWindow : Window {
+ 		}
+ 	}};
+ 
++	/** openttd-service: follow the actions counter of the web page. */
++	const IntervalTimer<TimerWindow> actions_interval = {std::chrono::milliseconds(500), [this](uint) {
++		std::string text = GetServiceActionsText();
++		if (text == this->actions_text) return;
++		bool resize = GetStringBoundingBox(text).width != GetStringBoundingBox(this->actions_text).width;
++		this->actions_text = std::move(text);
++		this->actions_empty = GetServiceActionsEmpty();
++		if (resize) {
++			this->ReInit();
++		} else {
++			this->SetWidgetDirty(WID_S_RIGHT);
++		}
++	}};
++
+ 	TimeoutTimer<TimerWindow> reminder_timeout = {REMINDER_START, [this]() {
+ 		this->SetWidgetDirty(WID_S_MIDDLE);
+ 	}};

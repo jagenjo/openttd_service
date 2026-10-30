@@ -37,7 +37,9 @@ scripts/build-web.sh        # cliente WASM; instala emsdk la primera vez (~15 mi
 scripts/start.sh            # arranca todo en http://localhost:8080
 ```
 
-- Cliente web: <http://localhost:8080/> → pantalla de usuario/contraseña → entra directamente a la partida del servidor (no hay menú principal).
+- Inicio: <http://localhost:8080/> — página pública con el mapa (arrastrar y zoom), jugadores
+  conectados y registrados, clasificación de empresas y estadísticas (`/info.json`, `/map.png`).
+- Juego: <http://localhost:8080/play/> → pantalla de usuario/contraseña → entra directamente a la partida del servidor (no hay menú principal).
 - Antes hay que crear cuentas en el panel (sección *Cuentas de jugador*).
 - Panel: <http://localhost:8080/admin>. Usuario cualquiera; la contraseña se
   genera en `runtime/admin-password.txt` (o define `ADMIN_PASSWORD`).
@@ -80,9 +82,9 @@ OpenTTD no tiene cuentas de usuario, así que las gestiona el servidor web
   acción; comprar vehículos no cuenta. Sin acciones, el servidor rechaza la orden y avisa por chat.
   Todos los días a las 0:00 (hora local del servidor) llega el *ACTIONS RESTORE* y se recuperan
   todas. Se configuran en el panel (*Acciones por día*, 0 = sin límite) y el jugador ve el
-  contador sobre el juego. El límite está en el propio servidor de juego
+  contador en la barra de estado del juego, junto al dinero. El límite está en el propio servidor de juego
   (`patches/service-server.patch`), por eso `build-server.sh` también aplica parches.
-- **Mapa:** el panel muestra el mapa (un píxel por casilla: color de empresa, blanco = estaciones,
+- **Mapa:** el panel (y la página de inicio) muestra el mapa (un píxel por casilla: color de empresa, blanco = estaciones,
   negro = industrias), regenerado cada hora y al cargar una partida. Lo vuelca el servidor de juego
   con el comando de consola `dump_map` y lo convierte en PNG `webserver/gamemap.js`.
 - Las cuentas se crean, cambian y borran en el panel de administración.

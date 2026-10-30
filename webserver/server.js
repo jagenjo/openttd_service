@@ -9,6 +9,7 @@ import crypto from 'node:crypto';
 import { WebSocketServer } from 'ws';
 import { Game } from './game.js';
 import { Users } from './users.js';
+import { COMPANY_COLOURS } from './gamemap.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WWW = process.env.WWW_DIR || path.join(ROOT, 'build', 'www');
@@ -66,20 +67,71 @@ async function handleAuth(req, res, pathname) {
   }
 }
 
+// Información pública para la página de inicio: sin IPs ni datos privados.
+function publicInfo() {
+  const accounts = users.list();
+  const online = accounts.filter((u) => bridged.has(u.name.toLowerCase())).map((u) => u.name);
+  const playerOf = new Map(accounts.filter((u) => u.company).map((u) => [u.company, u.name]));
+  const ranking = [...game.companies]
+    .sort((a, b) => b.value - a.value)
+    .map((c, i) => ({
+      rank: i + 1,
+      id: c.id,
+      company: c.name,
+      rgb: COMPANY_COLOURS[c.colour] ?? null,
+      player: playerOf.get(c.id) ?? null,
+      online: online.includes(playerOf.get(c.id)),
+      value: c.value,
+      money: c.money,
+      loan: c.loan,
+      founded: c.founded,
+      vehicles: c.vehicles,
+    }));
+  const total = (k) => game.companies.reduce((n, c) => n + c.vehicles[k], 0);
+  return {
+    name: game.settings.server_name,
+    running: game.running,
+    date: game.date,
+    minutesPerYear: game.settings.minutes_per_calendar_year,
+    registered: accounts.length,
+    online,
+    companies: game.companies.length,
+    vehicles: { trains: total('trains'), road: total('road'), planes: total('planes'), ships: total('ships') },
+    actionsPerDay: game.settings.actions_per_day,
+    nextRestore: game.nextRestore(),
+    ranking,
+    map: game.mapInfo && { time: game.mapInfo.time, width: game.mapInfo.width, height: game.mapInfo.height },
+  };
+}
+
 function serveStatic(req, res) {
   const url = new URL(req.url, 'http://x');
   let rel = decodeURIComponent(url.pathname);
+  if (rel === '/play') return void res.writeHead(302, { Location: '/play/' }).end();
   if (rel === '/login') rel = '/login.html';
   if (rel.endsWith('/')) rel += 'index.html';
-  // Solo la pantalla de acceso es pública: el juego (y su puente) exigen sesión.
+  if (rel === '/info.json') {
+    res.writeHead(200, { 'Content-Type': MIME['.json'], 'Cache-Control': 'no-cache' }).end(JSON.stringify(publicInfo()));
+    return;
+  }
+  if (rel === '/map.png') {
+    fs.readFile(game.mapFile, (err, png) => {
+      if (err) return res.writeHead(404).end();
+      res.writeHead(200, { 'Content-Type': MIME['.png'], 'Cache-Control': 'no-cache' }).end(png);
+    });
+    return;
+  }
+  // Son públicas la página de inicio, la de acceso y la información/mapa de arriba;
+  // el juego (play/) y su puente exigen sesión.
   const user = currentUser(req);
-  if (!user && rel !== '/login.html') {
-    if (rel === '/index.html') res.writeHead(302, { Location: '/login' }).end();
+  if (!user && rel !== '/index.html' && rel !== '/login.html') {
+    if (rel === '/play/index.html') res.writeHead(302, { Location: '/login?next=/play/' }).end();
     else res.writeHead(401).end('Login required');
     return;
   }
   if (user && rel === '/login.html') {
-    res.writeHead(302, { Location: '/' }).end();
+    const next = url.searchParams.get('next');
+    res.writeHead(302, { Location: next && /^\/(?!\/)/.test(next) ? next : '/play/' }).end();
     return;
   }
   const file = path.join(WWW, path.normalize(rel));
@@ -87,7 +139,7 @@ function serveStatic(req, res) {
     res.writeHead(403).end();
     return;
   }
-  if (rel === '/config.js') {
+  if (rel === '/play/config.js') {
     // Se añade el usuario de la sesión: el juego lo usa como nombre de jugador.
     fs.readFile(file, 'utf8', (err, text) => {
       if (err) return res.writeHead(404).end('Not found');
@@ -154,6 +206,7 @@ const game = new Game({
     actionsOf: (name) => users.actionsOf(name),
     setActions: (name, n) => users.setActions(name, n),
     restoreAllActions: () => users.restoreAllActions(),
+    adjustActions: (a, b) => users.adjustActions(a, b),
   },
 });
 
@@ -334,6 +387,7 @@ server.on('upgrade', (req, socket, head) => {
 });
 
 server.listen(HTTP_PORT, () => {
-  console.log(`Cliente web:  http://localhost:${HTTP_PORT}/  (puente /ws -> ${GAME_HOST}:${GAME_PORT})`);
+  console.log(`Inicio:       http://localhost:${HTTP_PORT}/
+  Juego:        http://localhost:${HTTP_PORT}/play/  (puente /ws -> ${GAME_HOST}:${GAME_PORT})`);
   console.log(`Panel admin:  http://localhost:${HTTP_PORT}/admin  (usuario cualquiera, contraseña en ${process.env.ADMIN_PASSWORD ? '$ADMIN_PASSWORD' : PASS_FILE})`);
 });

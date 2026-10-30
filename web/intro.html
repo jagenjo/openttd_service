@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenTTD</title>
+<style>
+  :root { --bg:#1d2733; --card:#27364a; --line:#3d5068; --fg:#eef2f7; --muted:#9db0c6; --accent:#e8a33d; --ok:#58c277; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.45 Tahoma, Arial, Helvetica, sans-serif; }
+  header { display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:18px 24px; background:#16202b; border-bottom:2px solid var(--accent); }
+  header h1 { margin:0; font-size:22px; flex:1; letter-spacing:.02em; }
+  .btn { display:inline-block; padding:8px 18px; border:1px solid #a8a8a8; background:#4a6a8a; color:#fff; text-decoration:none; font-size:15px; }
+  .btn.play { background:var(--accent); border-color:#f3c47a; color:#1d2733; font-weight:bold; font-size:17px; padding:10px 28px; }
+  main { max-width:1200px; margin:0 auto; padding:20px; display:grid; gap:18px; grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+  section { background:var(--card); border:1px solid var(--line); padding:14px 16px; min-width:0; }
+  section.wide { grid-column:1 / -1; }
+  h2 { margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:12px; }
+  .stat b { display:block; font-size:24px; }
+  .stat span { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.06em; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:6px 6px; border-bottom:1px solid var(--line); }
+  th { color:var(--muted); font-weight:normal; font-size:12px; text-transform:uppercase; }
+  td.num, th.num { text-align:right; font-variant-numeric:tabular-nums; }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; background:#5b6b7d; margin-right:6px; }
+  .dot.on { background:var(--ok); }
+  .sw { display:inline-block; width:12px; height:12px; margin-right:6px; vertical-align:-2px; border:1px solid #0006; }
+  .muted { color:var(--muted); }
+  .medal { font-weight:bold; color:var(--accent); }
+  #mapView { position:relative; width:100%; aspect-ratio:1; max-height:78vh; overflow:hidden; background:#16202b; border:1px solid var(--line); cursor:grab; touch-action:none; }
+  #mapView.drag { cursor:grabbing; }
+  #mapImg { position:absolute; left:0; top:0; transform-origin:0 0; image-rendering:pixelated; user-select:none; display:none; }
+  #mapZoom { position:absolute; top:6px; right:6px; display:flex; flex-direction:column; gap:4px; }
+  #mapZoom button { width:28px; height:28px; border:1px solid #a8a8a8; background:#4a6a8a; color:#fff; font-size:16px; cursor:pointer; }
+  .legend { display:flex; flex-wrap:wrap; gap:4px 16px; margin-top:8px; font-size:13px; }
+  ul.plain { list-style:none; margin:0; padding:0; }
+  ul.plain li { padding:4px 0; border-bottom:1px solid var(--line); }
+  @media (max-width:800px) { main { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="name">OpenTTD</h1>
+  <span id="who" class="muted"></span>
+  <a class="btn" id="login" href="/login">Iniciar sesión</a>
+  <a class="btn play" href="/play/">▶ Jugar</a>
+</header>
+<main>
+  <section class="wide">
+    <div class="stats">
+      <div class="stat"><b id="date">—</b><span>Fecha del juego</span></div>
+      <div class="stat"><b id="onlineN">0</b><span>Jugadores conectados</span></div>
+      <div class="stat"><b id="registered">0</b><span>Jugadores registrados</span></div>
+      <div class="stat"><b id="companies">0</b><span>Empresas</span></div>
+      <div class="stat"><b id="vehicles">0</b><span>Vehículos</span></div>
+      <div class="stat"><b id="status">—</b><span>Servidor</span></div>
+    </div>
+    <p class="muted" id="speed" style="margin:12px 0 0"></p>
+  </section>
+
+  <section>
+    <h2>Mapa <span id="mapInfo" style="text-transform:none;letter-spacing:0"></span></h2>
+    <div id="mapView" title="Arrastra para mover, rueda para zoom, doble clic para restablecer">
+      <img id="mapImg" alt="Mapa del juego" draggable="false">
+      <div id="mapZoom"><button data-zoom="1.5">+</button><button data-zoom="0.67">−</button><button data-zoom="0">⟲</button></div>
+    </div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section>
+    <h2>Conectados ahora</h2>
+    <ul class="plain" id="online"></ul>
+    <h2 style="margin-top:18px">Cómo se juega</h2>
+    <p class="muted" style="margin:0">Cada jugador tiene su cuenta y su propia empresa. Construir o destruir gasta una acción
+      (<b id="apd">—</b> al día); las acciones se restauran todos los días a las 0:00.
+      Los vehículos van a velocidad normal, pero el calendario avanza despacio.</p>
+  </section>
+
+  <section class="wide">
+    <h2>Clasificación de empresas</h2>
+    <table>
+      <thead><tr><th>#</th><th>Empresa</th><th>Jugador</th><th class="num">Valor</th><th class="num">Dinero</th><th class="num">Trenes</th><th class="num">Carretera</th><th class="num">Aviones</th><th class="num">Barcos</th></tr></thead>
+      <tbody id="ranking"></tbody>
+    </table>
+  </section>
+</main>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const money = (n) => (n < 0 ? '-£' : '£') + Math.abs(n).toLocaleString('es-ES');
+const swatch = (rgb) => `<span class="sw" style="background:${rgb ? `rgb(${rgb})` : '#f0f'}"></span>`;
+let mapTime = null;
+
+// --- Mapa: arrastrar, rueda para zoom, doble clic para restablecer ---
+const mapView = { x: 0, y: 0, k: 1 };
+function applyMapView() {
+  const v = $('#mapView'), img = $('#mapImg');
+  const fit = v.clientWidth / (img.naturalWidth || 1);
+  mapView.x = Math.min(0, Math.max(v.clientWidth - fit * mapView.k * (img.naturalWidth || 1), mapView.x));
+  mapView.y = Math.min(0, Math.max(v.clientHeight - fit * mapView.k * (img.naturalHeight || 1), mapView.y));
+  img.style.transform = `translate(${mapView.x}px, ${mapView.y}px) scale(${fit * mapView.k})`;
+}
+function zoomMap(factor, cx, cy) {
+  const v = $('#mapView');
+  cx ??= v.clientWidth / 2; cy ??= v.clientHeight / 2;
+  const k = Math.min(32, Math.max(1, mapView.k * factor));
+  const real = k / mapView.k;
+  mapView.x = cx - (cx - mapView.x) * real;
+  mapView.y = cy - (cy - mapView.y) * real;
+  mapView.k = k;
+  applyMapView();
+}
+(() => {
+  const v = $('#mapView');
+  let drag = null;
+  const reset = () => { Object.assign(mapView, { x: 0, y: 0, k: 1 }); applyMapView(); };
+  v.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const r = v.getBoundingClientRect();
+    zoomMap(e.deltaY < 0 ? 1.25 : 0.8, e.clientX - r.left, e.clientY - r.top);
+  }, { passive: false });
+  v.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('#mapZoom')) return;
+    drag = { x: e.clientX - mapView.x, y: e.clientY - mapView.y };
+    v.setPointerCapture(e.pointerId); v.classList.add('drag');
+  });
+  v.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    mapView.x = e.clientX - drag.x; mapView.y = e.clientY - drag.y;
+    applyMapView();
+  });
+  const end = () => { drag = null; v.classList.remove('drag'); };
+  v.addEventListener('pointerup', end); v.addEventListener('pointercancel', end);
+  v.addEventListener('dblclick', (e) => { if (!e.target.closest('#mapZoom')) reset(); });
+  v.addEventListener('click', (e) => {
+    const z = e.target.dataset?.zoom;
+    if (z === '0') reset(); else if (z) zoomMap(Number(z));
+  });
+  $('#mapImg').addEventListener('load', applyMapView);
+  window.addEventListener('resize', applyMapView);
+})();
+
+function render(d) {
+  document.title = d.name;
+  $('#name').textContent = d.name;
+  $('#date').textContent = d.date || '—';
+  $('#status').textContent = d.running ? 'En marcha' : 'Detenido';
+  $('#status').style.color = d.running ? 'var(--ok)' : '#e06666';
+  $('#onlineN').textContent = d.online.length;
+  $('#registered').textContent = d.registered;
+  $('#companies').textContent = d.companies;
+  $('#vehicles').textContent = Object.values(d.vehicles).reduce((a, b) => a + b, 0);
+  $('#speed').textContent = `1 año de juego = ${(d.minutesPerYear / 60).toFixed(1)} h reales.`;
+  $('#apd').textContent = d.actionsPerDay > 0 ? `${d.actionsPerDay} acciones` : 'sin límite';
+  $('#online').innerHTML = d.online.map((n) => `<li><span class="dot on"></span>${esc(n)}</li>`).join('') || '<li class="muted">Nadie conectado ahora mismo</li>';
+  $('#ranking').innerHTML = d.ranking.map((c) => `<tr>
+      <td class="${c.rank <= 3 ? 'medal' : ''}">${c.rank}</td>
+      <td>${swatch(c.rgb)}${esc(c.company)}</td>
+      <td>${c.player ? `<span class="dot ${c.online ? 'on' : ''}"></span>${esc(c.player)}` : '<span class="muted">—</span>'}</td>
+      <td class="num">${money(c.value)}</td><td class="num">${money(c.money)}</td>
+      <td class="num">${c.vehicles.trains}</td><td class="num">${c.vehicles.road}</td><td class="num">${c.vehicles.planes}</td><td class="num">${c.vehicles.ships}</td></tr>`).join('')
+    || '<tr><td colspan="9" class="muted">Todavía no hay empresas</td></tr>';
+  if (d.map) {
+    if (d.map.time !== mapTime) {
+      mapTime = d.map.time;
+      $('#mapImg').src = `/map.png?t=${d.map.time}`;
+      $('#mapImg').style.display = 'block';
+    }
+    $('#mapInfo').textContent = `· actualizado ${new Date(d.map.time).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+  }
+  const sw = (c, t) => `<span><span class="sw" style="background:${c}"></span>${t}</span>`;
+  $('#legend').innerHTML = sw('#fff', 'Estaciones') + sw('#000', 'Industrias') + sw('rgb(120,120,112)', 'Pueblos')
+    + d.ranking.map((c) => sw(c.rgb ? `rgb(${c.rgb})` : '#f0f', esc(c.player || c.company))).join('');
+}
+
+async function refresh() {
+  try { render(await (await fetch('/info.json', { cache: 'no-store' })).json()); } catch { /* se reintenta */ }
+}
+refresh();
+setInterval(refresh, 10000);
+
+// Si ya hay sesión, se saluda al jugador.
+fetch('/auth/me').then((r) => (r.ok ? r.json() : null)).then((me) => {
+  if (!me) return;
+  $('#who').textContent = `Sesión: ${me.user}`;
+  $('#login').textContent = 'Cerrar sesión';
+  $('#login').onclick = (e) => { e.preventDefault(); fetch('/auth/logout', { method: 'POST' }).then(() => location.reload()); };
+});
+</script>
+</body>
+</html>

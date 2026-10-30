@@ -34,29 +34,37 @@
       fetch('/auth/logout', { method: 'POST' }).finally(() => (location.href = '/login'));
   };
 
-  // Contador de acciones (construir/destruir) sobre el juego.
-  window.addEventListener('DOMContentLoaded', function () {
-    const box = document.createElement('div');
-    box.style.cssText = 'position:fixed;bottom:30px;right:8px;z-index:5;pointer-events:none;display:none;' +
-      'font:13px Tahoma,Arial,sans-serif;color:#fcfcfc;background:#4a6a8a;border:1px solid #a8a8a8;padding:2px 8px;text-shadow:1px 1px #101010';
-    document.body.appendChild(box);
-    let me = null;
-    function draw() {
-      if (!me || me.actions === null) return (box.style.display = 'none');
-      const min = Math.max(0, Math.round((me.nextRestore - Date.now()) / 60000));
-      box.textContent = `ACCIONES: ${me.actions} / ${me.max} · se restauran en ${Math.floor(min / 60)} h ${min % 60} min`;
-      box.style.background = me.actions === 0 ? '#e00000' : '#4a6a8a';
-      box.style.display = 'block';
+  // Contador de acciones (construir/destruir). El juego lo dibuja en su barra de estado, junto al
+  // dinero (parche statusbar_gui.cpp); se le pasa el texto con em_openttd_set_actions().
+  window.openttd_actions_text = '';
+  window.openttd_actions_zero = false;
+  let me = null;
+  function draw() {
+    if (!me || me.actions === null) {
+      window.openttd_actions_text = '';
+      return;
     }
-    async function poll() {
-      try {
-        const r = await fetch('/auth/me', { cache: 'no-store' });
-        if (r.ok) me = await r.json();
-      } catch { /* sin red: se mantiene el último valor */ }
-      draw();
-    }
-    poll();
-    setInterval(poll, 3000);
-    setInterval(draw, 30000);
-  });
+    const min = Math.max(0, Math.round((me.nextRestore - Date.now()) / 60000));
+    window.openttd_actions_text = `ACTIONS ${me.actions}/${me.max}  RESET ${Math.floor(min / 60)}h ${String(min % 60).padStart(2, '0')}m`;
+    window.openttd_actions_zero = me.actions === 0;
+  }
+  // Se lo pasamos al juego (barra de estado) en cuanto está arrancado.
+  let setActions = null;
+  function pushToGame() {
+    try {
+      setActions ??= window.Module && Module.cwrap ? Module.cwrap('em_openttd_set_actions', null, ['string', 'number']) : null;
+      if (setActions) setActions(window.openttd_actions_text, window.openttd_actions_zero ? 1 : 0);
+    } catch { setActions = null; /* el juego aún no está listo */ }
+  }
+  setInterval(pushToGame, 500);
+  async function poll() {
+    try {
+      const r = await fetch('/auth/me', { cache: 'no-store' });
+      if (r.ok) me = await r.json();
+    } catch { /* sin red: se mantiene el último valor */ }
+    draw();
+  }
+  poll();
+  setInterval(poll, 3000);
+  setInterval(draw, 30000);
 })();

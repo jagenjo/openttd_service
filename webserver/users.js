@@ -87,6 +87,16 @@ export class Users {
     this.save();
   }
 
+  // Cambia el máximo diario: a quien ya había gastado acciones se le suma/resta la diferencia.
+  adjustActions(oldMax, newMax) {
+    for (const u of Object.values(this.users)) {
+      if (u.actions == null) continue;
+      if (oldMax <= 0 || newMax <= 0) delete u.actions;
+      else u.actions = Math.min(newMax, Math.max(0, u.actions + newMax - oldMax));
+    }
+    this.save();
+  }
+
   has(name) {
     return this.key(name) in this.users;
   }
