@@ -97,6 +97,7 @@ function publicInfo() {
       rgb: COMPANY_COLOURS[c.colour] ?? null,
       player: playerOf.get(c.id) ?? null,
       online: online.includes(playerOf.get(c.id)),
+      actions: playerOf.has(c.id) ? game.actionsLeft(playerOf.get(c.id)) : null, // null = sin límite o sin jugador
       value: c.value,
       money: c.money,
       loan: c.loan,

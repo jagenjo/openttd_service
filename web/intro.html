@@ -107,7 +107,7 @@
   <section class="wide">
     <h2>Clasificación de empresas</h2>
     <table>
-      <thead><tr><th>#</th><th>Empresa</th><th>Jugador</th><th class="num">Valor</th><th class="num">Dinero</th><th class="num">Trenes</th><th class="num">Carretera</th><th class="num">Aviones</th><th class="num">Barcos</th></tr></thead>
+      <thead><tr><th>#</th><th>Empresa</th><th>Jugador</th><th class="num">Valor</th><th class="num">Dinero</th><th class="num">Acciones</th><th class="num">Trenes</th><th class="num">Carretera</th><th class="num">Aviones</th><th class="num">Barcos</th></tr></thead>
       <tbody id="ranking"></tbody>
     </table>
   </section>
@@ -185,8 +185,9 @@ function render(d) {
       <td>${swatch(c.rgb)}${esc(c.company)}</td>
       <td>${c.player ? `<span class="dot ${c.online ? 'on' : ''}"></span>${esc(c.player)}` : '<span class="muted">—</span>'}</td>
       <td class="num">${money(c.value)}</td><td class="num">${money(c.money)}</td>
+      <td class="num">${!c.player ? '<span class="muted">—</span>' : c.actions === null ? '∞' : `<span style="${c.actions === 0 ? 'color:#e06666' : ''}">${c.actions}/${d.actionsPerDay}</span>`}</td>
       <td class="num">${c.vehicles.trains}</td><td class="num">${c.vehicles.road}</td><td class="num">${c.vehicles.planes}</td><td class="num">${c.vehicles.ships}</td></tr>`).join('')
-    || '<tr><td colspan="9" class="muted">Todavía no hay empresas</td></tr>';
+    || '<tr><td colspan="10" class="muted">Todavía no hay empresas</td></tr>';
   if (d.map) {
     if (d.map.time !== mapTime) {
       mapTime = d.map.time;
