@@ -19,7 +19,12 @@
   section.wide { grid-column:1 / -1; }
   .col { display:grid; gap:18px; align-content:start; min-width:0; }
   #chatSec { display:flex; flex-direction:column; }
-  #chatSec #chat { overflow-wrap:anywhere; }
+  .chatWrap { flex:1; position:relative; min-height:260px; }
+  #chat { position:absolute; inset:0; overflow-y:auto; padding:8px; background:#16202b; border:1px solid var(--line); overflow-wrap:anywhere; }
+  .post { background:var(--card); border:1px solid var(--line); border-left:3px solid var(--accent); padding:8px 12px; margin-bottom:8px; }
+  .post .ph { display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:4px; }
+  .post .ph b { color:var(--accent); }
+  .post .ph span { font-size:12px; }
   .legend .on { color:var(--ok); font-weight:bold; }
   h2 { margin:0 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
   .stats { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:12px; }
@@ -90,8 +95,7 @@
   </div>
 
   <section id="chatSec">
-    <h2>Mensajes <span class="muted" style="text-transform:none;letter-spacing:0">· los jugadores conectados los ven también dentro del juego; el resto, al entrar</span></h2>
-    <div id="chat" style="flex:1;min-height:260px;overflow-y:auto;background:#16202b;border:1px solid var(--line);padding:6px 10px"></div>
+    <div class="chatWrap"><div id="chat"></div></div>
     <form id="chatForm" style="display:flex;gap:8px;margin-top:8px">
       <input id="chatText" maxlength="200" autocomplete="off" placeholder="Inicia sesión para escribir un mensaje" disabled
         style="flex:1;padding:8px;background:#16202b;color:var(--fg);border:1px solid var(--line);font:inherit">
@@ -213,8 +217,10 @@ async function pollChat() {
       chatLast = m.id;
       const row = document.createElement('div');
       const when = new Date(m.time).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-      row.innerHTML = `<span class="muted">${when}</span> <b></b> <span class="t"></span>`;
+      row.className = 'post';
+      row.innerHTML = '<div class="ph"><b></b><span class="muted"></span></div><div class="t"></div>';
       row.querySelector('b').textContent = m.user;
+      row.querySelector('.ph span').textContent = when;
       row.querySelector('.t').textContent = m.text;
       box.appendChild(row);
     }
