@@ -38,11 +38,11 @@ find -L "$RUNTIME_DIR/server/baseset" -type f \( -name '*.grf' -o -name '*.obg' 
 rm -f "$BUILD_DIR/web/openttd.js"  # fuerza el reempaquetado de openttd.data
 emmake make -C "$BUILD_DIR/web" -j "$JOBS"
 
-# 3) Empaquetar en build/www: index.html + config.js.
+# 3) Empaquetar en build/www: index.html + config.js + login.html.
 OUT="$BUILD_DIR/www"
 rm -rf "$OUT" && mkdir -p "$OUT"
 cp "$BUILD_DIR/web"/openttd.{html,js,wasm,data} "$OUT/"
-cp "$ROOT/web/config.js" "$OUT/config.js"
+cp "$ROOT/web/config.js" "$ROOT/web/login.html" "$OUT/"
 sed 's|<head>|<head><script src="config.js"></script>|' "$OUT/openttd.html" > "$OUT/index.html"
 rm "$OUT/openttd.html"
 echo "Cliente web listo en $OUT"

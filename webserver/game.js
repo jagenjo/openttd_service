@@ -15,13 +15,12 @@ export const DEFAULT_SETTINGS = {
   map_y: 8,
   landscape: 'temperate',
   max_companies: 15,
-  whitelist_enabled: false,
-  players: [],
 };
 
 export class Game extends EventEmitter {
-  constructor({ root }) {
+  constructor({ root, players }) {
     super();
+    this.players = players; // { isAllowed(name), companyOf(name), ownerOf(id), setCompany(name, id|null) }
     this.root = root;
     this.bin = path.join(root, 'build', 'server', 'openttd');
     this.dataDir = path.join(root, 'runtime', 'server');
@@ -59,7 +58,6 @@ export class Game extends EventEmitter {
     s.map_x = Math.min(12, Math.max(6, s.map_x | 0));
     s.map_y = Math.min(12, Math.max(6, s.map_y | 0));
     s.max_companies = Math.min(15, Math.max(1, s.max_companies | 0));
-    s.players = [...new Set((s.players || []).map((p) => String(p).trim()).filter(Boolean))];
     this.settings = s;
     fs.writeFileSync(this.settingsFile, JSON.stringify(s, null, 2));
     return s;
@@ -79,7 +77,11 @@ export class Game extends EventEmitter {
     };
     cfg.network = { ...cfg.network, max_companies: s.max_companies };
     fs.writeFileSync(path.join(this.dataDir, 'openttd.cfg'), stringifyIni(cfg));
-    fs.writeFileSync(path.join(this.dataDir, 'private.cfg'), stringifyIni({ network: { server_name: s.server_name } }));
+    // El puerto del juego solo escucha en local: se entra por el puente web (que exige login).
+    // GAME_PUBLIC=1 lo abre a todas las interfaces.
+    const priv = { network: { server_name: s.server_name } };
+    if (!process.env.GAME_PUBLIC) priv.server_bind_addresses = { '127.0.0.1': null };
+    fs.writeFileSync(path.join(this.dataDir, 'private.cfg'), stringifyIni(priv));
     fs.writeFileSync(path.join(this.dataDir, 'secrets.cfg'), stringifyIni({ network: { server_password: s.server_password } }), { mode: 0o600 });
   }
 
@@ -102,6 +104,11 @@ export class Game extends EventEmitter {
     return list.sort((a, b) => b.mtime - a.mtime);
   }
 
+  // Última partida (guardado manual, al detener o autoguardado), la más reciente.
+  latestSave() {
+    return this.saves()[0]?.name ?? null;
+  }
+
   // Arranca el servidor. Sin `save` genera un mapa nuevo.
   start(save) {
     if (this.proc) throw new Error('El servidor ya está en marcha');
@@ -121,6 +128,8 @@ export class Game extends EventEmitter {
     this.proc.stderr.on('data', (d) => this.onOutput(d));
     this.proc.on('exit', (code) => {
       this.addLog(`El servidor terminó (código ${code})`);
+      this.requestedExit = this.stopping;
+      this.stopping = false;
       this.proc = null;
       this.clients = [];
       this.companies = [];
@@ -136,6 +145,7 @@ export class Game extends EventEmitter {
   async stop() {
     if (!this.proc) return;
     const proc = this.proc;
+    this.stopping = true;
     const exited = new Promise((r) => proc.once('exit', r));
     try {
       await this.command('save last', 20000);
@@ -233,14 +243,44 @@ export class Game extends EventEmitter {
         vehicles: { trains: +t, road: +r, planes: +p, ships: +s },
       }));
 
-    if (this.settings.whitelist_enabled) {
-      const allowed = new Set(this.settings.players.map((p) => p.toLowerCase()));
-      for (const c of this.clients) {
-        if (!allowed.has(c.name.toLowerCase())) {
-          this.addLog(`Expulsando a '${c.name}': no está en la lista de jugadores`);
-          await this.command(`kick ${c.id} "No estás en la lista de jugadores de este servidor"`).catch(() => {});
-        }
+    await this.enforcePlayers();
+  }
+
+  // Solo juegan los usuarios con sesión abierta en el cliente web, y con su nombre de usuario:
+  // cualquiera que entre con otro nombre (p.ej. un cliente de escritorio, o un jugador que se
+  // cambie el nombre al de otra cuenta) es expulsado. Además cada cuenta tiene su empresa:
+  // la primera que funda se le vincula, y desde entonces entra siempre en ella.
+  async enforcePlayers() {
+    const P = this.players;
+    // Si una empresa vinculada ya no existe (quiebra), se desvincula.
+    const exists = new Set(this.companies.map((c) => c.id));
+    for (const u of P.accounts()) if (u.company !== null && !exists.has(u.company)) P.setCompany(u.name, null);
+
+    for (const c of this.clients) {
+      if (!P.isAllowed(c.name)) {
+        this.addLog(`Expulsando a '${c.name}': no coincide con un usuario conectado`);
+        await this.command(`kick ${c.id} "Entra desde el cliente web con tu usuario"`).catch(() => {});
+        continue;
       }
+      if (c.company !== 255 && (c.company < 1 || c.company > 15)) continue; // 254: empresa nueva aún sin crear
+      const mine = P.companyOf(c.name);
+      const owner = c.company === 255 ? null : P.ownerOf(c.company);
+      let target;
+      if (mine !== null) {
+        // Su empresa; nunca la de otro.
+        if (c.company === mine) continue;
+        target = mine;
+      } else if (c.company !== 255 && owner === null) {
+        P.setCompany(c.name, c.company); // primera empresa del jugador: se vincula
+        this.addLog(`Empresa ${c.company} vinculada a '${c.name}'`);
+        continue;
+      } else if (owner !== null && owner.toLowerCase() !== c.name.toLowerCase()) {
+        target = 255; // empresa ajena y sin empresa propia: espectador
+      } else {
+        continue;
+      }
+      this.addLog(`Moviendo a '${c.name}' a ${target === 255 ? 'espectadores' : `su empresa ${target}`}`);
+      await this.command(`move ${c.id} ${target}`).catch(() => {});
     }
   }
 

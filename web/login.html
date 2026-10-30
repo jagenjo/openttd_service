@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenTTD · Acceso</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; height:100vh; display:flex; align-items:center; justify-content:center; background:#2a3a4a;
+         font:14px Tahoma, Arial, Helvetica, sans-serif; color:#fcfcfc; }
+  form { background:#838383; border:1px solid #a8a8a8; outline:1px solid #626262; width:320px; padding:0 0 12px; }
+  h1 { margin:0 0 12px; padding:4px 8px; font-size:14px; font-weight:normal; background:#4a6a8a; text-shadow:1px 1px #101010; }
+  label { display:block; margin:8px 12px 0; color:#101010; }
+  input { display:block; width:100%; margin-top:3px; padding:5px; font:inherit; border:1px solid #626262; background:#c8c8c8; color:#101010; }
+  button { display:block; margin:14px 12px 0; width:calc(100% - 24px); padding:6px; font:inherit; cursor:pointer;
+           background:#4a6a8a; color:#fff; border:1px solid #a8a8a8; }
+  button:disabled { opacity:.6; cursor:default; }
+  #error { margin:10px 12px 0; min-height:18px; color:#fcf880; background:#e00000; padding:0 4px; display:none; }
+</style>
+</head>
+<body>
+<form id="f">
+  <h1>OpenTTD</h1>
+  <label>Usuario <input name="user" autocomplete="username" autofocus required maxlength="24"></label>
+  <label>Contraseña <input name="password" type="password" autocomplete="current-password" required></label>
+  <div id="error"></div>
+  <button>Entrar</button>
+</form>
+<script>
+const f = document.getElementById('f'), err = document.getElementById('error');
+f.onsubmit = async (e) => {
+  e.preventDefault();
+  err.style.display = 'none';
+  f.querySelector('button').disabled = true;
+  try {
+    const r = await fetch('/auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(Object.fromEntries(new FormData(f))),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || r.statusText);
+    location.href = '/';
+  } catch (ex) {
+    err.textContent = ex.message; err.style.display = 'block';
+    f.querySelector('button').disabled = false;
+  }
+};
+</script>
+</body>
+</html>

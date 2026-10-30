@@ -38,3 +38,45 @@ index 8e46ae3..f6343bc 100644
  
          /* Add servers that support WebSocket here. Examples:
           *  add_server("localhost");
+diff --git a/src/intro_gui.cpp b/src/intro_gui.cpp
+index d441474..50bf1a5 100644
+--- a/src/intro_gui.cpp
++++ b/src/intro_gui.cpp
+@@ -397,6 +397,10 @@ static WindowDesc _select_game_desc(
+ 
+ void ShowSelectGameWindow()
+ {
++#ifdef __EMSCRIPTEN__
++	/* openttd-service: the web client has no main menu, players log in on the web page. */
++	return;
++#endif
+ 	new SelectGameWindow(_select_game_desc);
+ }
+ 
+diff --git a/src/openttd.cpp b/src/openttd.cpp
+index 7d585b0..503dbe1 100644
+--- a/src/openttd.cpp
++++ b/src/openttd.cpp
+@@ -441,6 +441,11 @@ struct AfterNewGRFScan : NewGRFScanCallback {
+ 			LoadIntroGame();
+ 			_switch_mode = SM_NONE;
+ 
++#ifdef __EMSCRIPTEN__
++			/* openttd-service: the player name is the logged-in user (window.openttd_user). */
++			std::string user = emscripten_run_script_string("String(window.openttd_user || '')");
++			if (!user.empty()) _settings_client.network.client_name = user;
++#endif
+ 			NetworkClientConnectGame(connection_string, COMPANY_NEW_COMPANY, join_server_password);
+ 		}
+ 
+@@ -1158,6 +1163,10 @@ void SwitchToMode(SwitchMode new_mode)
+ 			break;
+ 
+ 		case SM_MENU: // Switch to game intro menu
++#ifdef __EMSCRIPTEN__
++			/* openttd-service: there is no main menu; show the "disconnected" screen of the web page. */
++			emscripten_run_script("if (window.openttd_disconnected) window.openttd_disconnected(); else location.reload();");
++#endif
+ 			LoadIntroGame();
+ 			if (BaseSounds::ini_set.empty() && BaseSounds::GetUsedSet()->fallback && SoundDriver::GetInstance()->HasOutput()) {
+ 				ShowErrorMessage(GetEncodedString(STR_WARNING_FALLBACK_SOUNDSET), {}, WL_CRITICAL);

@@ -64,17 +64,17 @@
   </section>
 
   <section>
-    <h2>Jugadores</h2>
-    <label class="check"><input type="checkbox" id="whitelist"> Solo permitir los jugadores de la lista (expulsa al resto por nombre)</label>
-    <form class="row" id="addPlayer"><input id="newPlayer" placeholder="Nombre del jugador" style="flex:1"><button>Añadir</button></form>
-    <ul class="plain" id="players"></ul>
+    <h2>Cuentas de jugador</h2>
+    <p class="muted">Solo pueden jugar los usuarios de esta lista: entran desde el cliente web con su usuario y contraseña, y ese es su nombre en el juego.</p>
+    <form class="row" id="addUser"><input id="newUser" placeholder="Usuario" maxlength="24" style="flex:1" autocomplete="off"><input id="newPass" type="text" placeholder="Contraseña (mín. 6)" style="flex:1" autocomplete="off"><button>Crear / cambiar</button></form>
+    <ul class="plain" id="users"></ul>
     <h2 style="margin-top:16px">Conectados ahora</h2>
     <table><thead><tr><th>#</th><th>Nombre</th><th>Empresa</th><th>IP</th><th></th></tr></thead><tbody id="clients"></tbody></table>
   </section>
 
   <section class="wide">
     <h2>Empresas</h2>
-    <table><thead><tr><th>#</th><th>Nombre</th><th>Fundada</th><th class="num">Dinero</th><th class="num">Préstamo</th><th class="num">Valor</th><th class="num">Trenes</th><th class="num">Carretera</th><th class="num">Aviones</th><th class="num">Barcos</th></tr></thead><tbody id="companies"></tbody></table>
+    <table><thead><tr><th>#</th><th>Nombre</th><th>Fundada</th><th class="num">Dinero</th><th class="num">Préstamo</th><th class="num">Valor</th><th class="num">Trenes</th><th class="num">Carretera</th><th class="num">Aviones</th><th class="num">Barcos</th><th></th></tr></thead><tbody id="companies"></tbody></table>
   </section>
 
   <section>
@@ -111,6 +111,8 @@ const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 const money = (n) => '£' + n.toLocaleString('es-ES');
 let status = null;
+let users = [];
+let online = [];
 let settingsLoaded = false;
 
 function toast(msg) {
@@ -133,23 +135,23 @@ function render() {
   $('#date').textContent = s.date || (s.running ? 'Cargando…' : 'Servidor detenido');
   const m = s.settings.minutes_per_calendar_year;
   $('#speed').textContent = `1 año de juego = ${m} min reales (${(m / 60).toFixed(1)} h). 1 día de juego ≈ ${(m * 60 / 365).toFixed(0)} s.`;
-  $('#btnStart').disabled = s.running || !s.saves.some((x) => x.name === 'last.sav');
+  $('#btnStart').disabled = s.running || !s.saves.length;
   for (const id of ['#btnStop', '#btnPause', '#btnUnpause', '#btnSave']) $(id).disabled = !s.running;
 
   $('#saves').innerHTML = s.saves.map((x) => `<li><span>${esc(x.name)} <span class="muted">${new Date(x.mtime).toLocaleString('es-ES')}</span></span>
     <button data-load="${esc(x.name)}" ${s.running ? 'disabled' : ''}>Cargar</button></li>`).join('') || '<li class="muted">Ninguna todavía</li>';
 
-  $('#whitelist').checked = s.settings.whitelist_enabled;
-  $('#players').innerHTML = s.settings.players.map((p) => `<li><span>${esc(p)}</span><button class="danger" data-remove="${esc(p)}">Quitar</button></li>`).join('')
-    || '<li class="muted">Lista vacía</li>';
+  $('#users').innerHTML = users.map((u) => `<li><span>${esc(u.name)} <span class="muted">${u.company ? `· empresa ${u.company}` : '· sin empresa'}${online.includes(u.name.toLowerCase()) ? ' · conectado' : ''}</span></span><button class="danger" data-deluser="${esc(u.name)}">Borrar</button></li>`).join('')
+    || '<li class="muted">Sin cuentas: nadie puede entrar</li>';
 
   $('#clients').innerHTML = s.clients.map((c) => `<tr><td>${c.id}</td><td>${esc(c.name)}</td><td>${c.company === 255 ? 'Espectador' : c.company}</td><td>${esc(c.ip)}</td>
     <td><button class="danger" data-kick="${c.id}">Expulsar</button></td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nadie conectado</td></tr>';
 
   $('#companies').innerHTML = s.companies.map((c) => `<tr><td>${c.id}</td><td>${esc(c.name)}</td><td>${c.founded}</td>
     <td class="num">${money(c.money)}</td><td class="num">${money(c.loan)}</td><td class="num">${money(c.value)}</td>
-    <td class="num">${c.vehicles.trains}</td><td class="num">${c.vehicles.road}</td><td class="num">${c.vehicles.planes}</td><td class="num">${c.vehicles.ships}</td></tr>`).join('')
-    || '<tr><td colspan="10" class="muted">Sin empresas</td></tr>';
+    <td class="num">${c.vehicles.trains}</td><td class="num">${c.vehicles.road}</td><td class="num">${c.vehicles.planes}</td><td class="num">${c.vehicles.ships}</td>
+    <td><button class="danger" data-delcompany="${c.id}" data-name="${esc(c.name)}">Eliminar</button></td></tr>`).join('')
+    || '<tr><td colspan="11" class="muted">Sin empresas</td></tr>';
 
   if (!settingsLoaded) {
     for (const el of $('#settings').elements) if (el.name) el.value = s.settings[el.name];
@@ -160,6 +162,7 @@ function render() {
 async function refresh() {
   try {
     status = await call('GET', '/api/status');
+    ({ users, online } = await call('GET', '/api/users'));
     render();
     const { log } = await call('GET', '/api/log');
     const pre = $('#log'); const atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 5;
@@ -168,8 +171,8 @@ async function refresh() {
   } catch (e) { toast(e.message); }
 }
 
-$('#btnStart').onclick = () => post('/api/start', { save: 'last.sav' }).then(refresh);
-$('#btnNew').onclick = () => confirm('¿Empezar una partida nueva? La actual se guarda como last.sav y luego se sustituye.') && post('/api/newgame').then(refresh);
+$('#btnStart').onclick = () => post('/api/start', { save: status.saves[0].name }).then(refresh);
+$('#btnNew').onclick = () => confirm('¿Empezar una partida nueva? La actual se guarda antes como last.sav y luego se sustituye.') && post('/api/newgame').then(refresh);
 $('#btnStop').onclick = () => post('/api/stop').then(refresh);
 $('#btnPause').onclick = () => post('/api/pause').then(() => toast('Pausado'));
 $('#btnUnpause').onclick = () => post('/api/unpause').then(() => toast('En marcha'));
@@ -178,14 +181,14 @@ $('#btnSave').onclick = () => { const name = prompt('Nombre de la partida', 'man
 document.addEventListener('click', (e) => {
   const d = e.target.dataset || {};
   if (d.load) post('/api/start', { save: d.load }).then(refresh);
+  if (d.delcompany && confirm(`¿Eliminar la empresa ${d.delcompany} (${d.name}) con todos sus vehículos y propiedades? No se puede deshacer.`)) post('/api/company/delete', { id: Number(d.delcompany) }).then(() => { toast('Empresa eliminada'); refresh(); });
   if (d.kick) post('/api/kick', { id: Number(d.kick) }).then(refresh);
-  if (d.remove) post('/api/settings', { players: status.settings.players.filter((p) => p !== d.remove) }).then(refresh);
+  if (d.deluser && confirm(`¿Borrar la cuenta ${d.deluser}?`)) post('/api/users/delete', { name: d.deluser }).then(refresh);
 });
-$('#whitelist').onchange = (e) => post('/api/settings', { whitelist_enabled: e.target.checked }).then(refresh);
-$('#addPlayer').onsubmit = (e) => {
+$('#addUser').onsubmit = (e) => {
   e.preventDefault();
-  const name = $('#newPlayer').value.trim();
-  if (name) post('/api/settings', { players: [...status.settings.players, name] }).then(() => { $('#newPlayer').value = ''; refresh(); });
+  post('/api/users', { name: $('#newUser').value.trim(), password: $('#newPass').value })
+    .then(() => { $('#newUser').value = ''; $('#newPass').value = ''; toast('Cuenta guardada'); refresh(); });
 };
 $('#settings').onsubmit = (e) => {
   e.preventDefault();

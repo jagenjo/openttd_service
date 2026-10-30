@@ -18,6 +18,6 @@ export function parseIni(text) {
 
 export function stringifyIni(data) {
   return Object.entries(data)
-    .map(([name, kv]) => `[${name}]\n` + Object.entries(kv).map(([k, v]) => `${k} = ${v}`).join('\n'))
+    .map(([name, kv]) => `[${name}]\n` + Object.entries(kv).map(([k, v]) => (v === null ? k : `${k} = ${v}`)).join('\n'))
     .join('\n\n') + '\n';
 }
