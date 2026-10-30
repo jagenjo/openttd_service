@@ -21,6 +21,7 @@ if ! git -C "$SRC_DIR" apply -R --check "$ROOT/patches/web-client.patch" 2>/dev/
 fi
 
 # 1) Herramientas nativas que se usan durante la compilación (strgen, settingsgen...).
+reset_cmake_cache "$BUILD_DIR/web-host"
 cmake -S "$SRC_DIR" -B "$BUILD_DIR/web-host" -DOPTION_TOOLS_ONLY=ON
 cmake --build "$BUILD_DIR/web-host" -j "$JOBS" --target tools
 

@@ -24,9 +24,12 @@ build/, vendor/, runtime/   Generados (ignorados por git)
 
 ## Puesta en marcha (local)
 
-Requisitos: compilador C++, CMake, git, curl, unzip, Node ≥ 18 y las librerías
+Requisitos: GCC ≥ 12 (o Clang con C++20), CMake, git, curl, unzip, Node ≥ 18 y las librerías
 zlib, liblzma y lzo. En Ubuntu: `scripts/install-deps-ubuntu.sh`. En macOS:
 `brew install cmake xz lzo libpng node` (OpenGFX se descarga solo).
+
+**Windows:** usa WSL (Ubuntu). Compila mucho más rápido si el repo está dentro
+de WSL (`~/openTTD_service`) que en `/mnt/c` o `/mnt/f`.
 
 ```bash
 scripts/build-server.sh     # servidor dedicado (~5-10 min)
