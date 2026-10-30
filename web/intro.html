@@ -192,8 +192,7 @@ function render(d) {
     $('#mapInfo').textContent = `· actualizado ${new Date(d.map.time).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
   }
   const sw = (c, t) => `<span><span class="sw" style="background:${c}"></span>${t}</span>`;
-  $('#legend').innerHTML = sw('#fff', 'Estaciones') + sw('#000', 'Industrias') + sw('rgb(120,120,112)', 'Pueblos')
-    + d.ranking.map((c) => `<span class="${c.online ? 'on' : ''}">${sw(c.rgb ? `rgb(${c.rgb})` : '#f0f', (c.online ? '● ' : '') + esc(c.player || c.company))}</span>`).join('');
+  $('#legend').innerHTML = d.ranking.map((c) => `<span class="${c.online ? 'on' : ''}">${sw(c.rgb ? `rgb(${c.rgb})` : '#f0f', (c.online ? '● ' : '') + esc(c.player || c.company))}</span>`).join('');
 }
 
 async function refresh() {
