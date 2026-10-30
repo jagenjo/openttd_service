@@ -185,7 +185,7 @@ function render(d) {
       <td>${swatch(c.rgb)}${esc(c.company)}</td>
       <td>${c.player ? `<span class="dot ${c.online ? 'on' : ''}"></span>${esc(c.player)}` : '<span class="muted">—</span>'}</td>
       <td class="num">${money(c.value)}</td><td class="num">${money(c.money)}</td>
-      <td class="num">${!c.player ? '<span class="muted">—</span>' : c.actions === null ? '∞' : `<span style="${c.actions === 0 ? 'color:#e06666' : ''}">${c.actions}/${d.actionsPerDay}</span>`}</td>
+      <td class="num">${!c.player || c.actions === undefined ? '<span class="muted">—</span>' : c.actions === null ? '∞' : `<span style="${c.actions === 0 ? 'color:#e06666' : ''}">${c.actions}/${d.actionsPerDay}</span>`}</td>
       <td class="num">${c.vehicles.trains}</td><td class="num">${c.vehicles.road}</td><td class="num">${c.vehicles.planes}</td><td class="num">${c.vehicles.ships}</td></tr>`).join('')
     || '<tr><td colspan="10" class="muted">Todavía no hay empresas</td></tr>';
   if (d.map) {
