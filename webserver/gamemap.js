@@ -25,11 +25,11 @@ export function renderMap(file, companies) {
   const h = buf.readUInt32LE(4);
   const src = buf.subarray(8, 8 + w * h);
   if (src.length !== w * h) throw new Error('Volcado de mapa incompleto');
-  // Orientación: se voltea en horizontal y se gira 90° a la derecha. La imagen resultante es de
-  // h x w y el píxel (x, y) del volcado pasa a (h-1-y, w-1-x).
+  // Orientación: se voltea en horizontal, se gira 90° a la derecha y otros 180° (en total, una
+  // transposición). La imagen resultante es de h x w y el píxel (x, y) del volcado pasa a (y, x).
   const pixels = Buffer.alloc(w * h);
   for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) pixels[(w - 1 - x) * h + (h - 1 - y)] = src[y * w + x];
+    for (let x = 0; x < w; x++) pixels[x * h + y] = src[y * w + x];
   }
   const palette = Array.from({ length: 32 }, (_, i) => BASE[i] ?? [255, 0, 255]);
   for (const c of companies) palette[15 + c.id] = COMPANY_COLOURS[c.colour] ?? [255, 0, 255];
