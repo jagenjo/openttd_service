@@ -1,0 +1,16 @@
+services:
+  openttd:
+    build: .
+    image: openttd-service
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-8080}:8080"
+    environment:
+      HTTP_PORT: 8080
+      # Contraseña del panel /admin; si se omite se genera en runtime/admin-password.txt
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    volumes:
+      # Partidas, cuentas, chat y ajustes (sobreviven a reinicios y reconstrucciones).
+      - ./runtime:/app/runtime
+    # Da tiempo a guardar la partida al parar.
+    stop_grace_period: 30s

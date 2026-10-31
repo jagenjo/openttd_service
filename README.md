@@ -95,6 +95,16 @@ OpenTTD no tiene cuentas de usuario, así que las gestiona el servidor web
 - Las empresas se protegen solas: en OpenTTD 15 solo quien la fundó (y quien
   esa persona autorice) puede entrar en ella.
 
+## Docker
+
+```bash
+ADMIN_PASSWORD=algo-secreto docker compose up -d --build   # http://localhost:8080
+```
+
+La primera construcción es larga (compila OpenTTD dos veces y descarga emsdk). Partidas, cuentas, chat y
+ajustes se guardan en `./runtime` (volumen). Al parar el contenedor se guarda la partida y se retoma al
+arrancar. Puerto alternativo: `HTTP_PORT=9000 docker compose up -d`.
+
 ## Despliegue en Ubuntu (más adelante)
 
 1. `scripts/install-deps-ubuntu.sh`, `build-server.sh`, `build-web.sh`.
