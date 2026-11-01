@@ -1,0 +1,16 @@
+diff --git a/src/vehicle.cpp b/src/vehicle.cpp
+--- a/src/vehicle.cpp
++++ b/src/vehicle.cpp
+@@ -1291,7 +1291,11 @@
+ 	/* decrease reliability */
+ 	if (!_settings_game.order.no_servicing_if_no_breakdowns ||
+ 			_settings_game.difficulty.vehicle_breakdowns != 0) {
+-		v->reliability = rel = std::max((rel_old = v->reliability) - v->reliability_spd_dec, 0);
++		/* openttd-service: vehicles wear out at the same pace as the economy (economy.income_percent).
++		 * The fraction is rounded randomly; the game random generator keeps all clients in sync. */
++		uint32_t wear = static_cast<uint32_t>(v->reliability_spd_dec) * _settings_game.economy.income_percent;
++		int dec = static_cast<int>(wear / 100) + (RandomRange(100) < wear % 100 ? 1 : 0);
++		v->reliability = rel = std::max((rel_old = v->reliability) - dec, 0);
+ 		if ((rel_old >> 8) != (rel >> 8)) SetWindowDirty(WC_VEHICLE_DETAILS, v->index);
+ 	}
+ 

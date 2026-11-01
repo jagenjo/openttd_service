@@ -1,0 +1,39 @@
+diff --git a/src/console_cmds.cpp b/src/console_cmds.cpp
+--- a/src/console_cmds.cpp
++++ b/src/console_cmds.cpp
+@@ -1171,6 +1171,27 @@
+ 	return true;
+ }
+ 
++/** openttd-service: set the money of a company. Sent as a deity command so every client stays in sync. */
++static bool ConCompanyMoney(std::span<std::string_view> argv)
++{
++	if (argv.size() != 3) {
++		IConsolePrint(CC_HELP, "Set the money of a company. Usage: 'company_money <company-id> <amount>' (base currency, company 1 is 1).");
++		return true;
++	}
++	auto index = ParseCompanyID(argv[1]);
++	auto amount = ParseInteger<int64_t>(argv[2]);
++	if (!index.has_value() || !amount.has_value() || !Company::IsValidID(*index)) {
++		IConsolePrint(CC_ERROR, "Invalid company or amount.");
++		return true;
++	}
++	Money delta = Money(*amount) - Company::Get(*index)->money;
++	Backup<CompanyID> cur_company(_current_company, OWNER_DEITY);
++	Command<CMD_CHANGE_BANK_BALANCE>::Post(TileIndex{}, delta, *index, EXPENSES_OTHER);
++	cur_company.Restore();
++	IConsolePrint(CC_DEFAULT, "Money of company {} set to {}.", index->base() + 1, *amount);
++	return true;
++}
++
+ static bool ConResetCompany(std::span<std::string_view> argv)
+ {
+ 	if (argv.empty()) {
+@@ -3117,6 +3138,7 @@
+ 	IConsole::AliasRegister("spectate",              "join 255");
+ 	IConsole::CmdRegister("move",                    ConMoveClient,       ConHookServerOnly);
+ 	IConsole::CmdRegister("reset_company",           ConResetCompany,     ConHookServerOnly);
++	IConsole::CmdRegister("company_money",           ConCompanyMoney,     ConHookServerOnly);
+ 	IConsole::AliasRegister("clean_company",         "reset_company %A");
+ 	IConsole::CmdRegister("client_name",             ConClientNickChange, ConHookServerOnly);
+ 	IConsole::CmdRegister("kick",                    ConKick,             ConHookServerOnly);

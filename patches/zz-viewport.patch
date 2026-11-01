@@ -1,0 +1,60 @@
+diff --git a/src/company_cmd.cpp b/src/company_cmd.cpp
+--- a/src/company_cmd.cpp
++++ b/src/company_cmd.cpp
+@@ -24,6 +24,8 @@
+ #include "ai/ai_config.hpp"
+ #include "company_manager_face.h"
+ #include "window_func.h"
++#include "viewport_func.h"
++#include "station_base.h"
+ #include "strings_func.h"
+ #include "sound_func.h"
+ #include "rail.h"
+@@ -111,6 +113,30 @@
+ }
+ 
+ /**
++ * openttd-service: when the local company changes, show the player's own area of the map:
++ * the headquarters, else the first station, else the biggest town.
++ * @param company Company the player now controls.
++ */
++static void ServiceScrollToCompany(CompanyID company)
++{
++	if (!Company::IsValidID(company) || FindWindowById(WC_MAIN_WINDOW, 0) == nullptr) return;
++	TileIndex tile = Company::Get(company)->location_of_HQ;
++	if (tile == INVALID_TILE) {
++		for (const Station *st : Station::Iterate()) {
++			if (st->owner == company && st->xy != INVALID_TILE) { tile = st->xy; break; }
++		}
++	}
++	if (tile == INVALID_TILE) {
++		const Town *best = nullptr;
++		for (const Town *t : Town::Iterate()) {
++			if (best == nullptr || t->cache.population > best->cache.population) best = t;
++		}
++		if (best != nullptr) tile = best->xy;
++	}
++	if (tile != INVALID_TILE) ScrollMainWindowToTile(tile, true);
++}
++
++/**
+  * Sets the local company and updates the settings that are set on a
+  * per-company basis to reflect the core's state in the GUI.
+  * @param new_company the new company
+@@ -143,6 +169,16 @@
+ 	InvalidateWindowClassesData(WC_GOALS_LIST);
+ 	InvalidateWindowClassesData(WC_COMPANY_COLOUR, -1);
+ 	ResetVehicleColourMap();
++
++	/* openttd-service: web clients start in euros; the player can change it later in the game options. */
++	static bool service_currency_set = false;
++	if (!service_currency_set && _networking && !_network_server) {
++		service_currency_set = true;
++		_settings_game.locale.currency = 2;
++		MarkWholeScreenDirty();
++	}
++
++	if (switching_company) ServiceScrollToCompany(new_company);
+ }
+ 
+ /**

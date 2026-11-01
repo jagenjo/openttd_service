@@ -460,6 +460,7 @@ export class Game extends EventEmitter {
     if (this.moneySynced) return;
     const pct = this.incomePercent;
     await this.command(`setting income_percent ${pct}`);
+    await this.command('setting currency 2'); // euro: los clientes toman la moneda de la partida que envía el servidor
     // El ritmo del calendario también se puede cambiar con la partida en marcha.
     await this.command(`setting minutes_per_calendar_year ${this.settings.minutes_per_calendar_year}`);
     const out = (await this.command('setting income_percent')).join(' ');

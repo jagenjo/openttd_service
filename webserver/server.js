@@ -328,6 +328,15 @@ const api = {
     if (owner) users.setCompany(owner, null);
     await game.refresh().catch(() => {});
   },
+  'POST /api/company/money': async (b) => {
+    const id = Number(b.id), amount = Math.round(Number(b.amount));
+    if (!Number.isInteger(id) || id < 1 || id > 15) throw new Error('Empresa no válida');
+    if (!Number.isFinite(amount) || Math.abs(amount) > 1e12) throw new Error('Cantidad no válida');
+    const out = (await game.command(`company_money ${id} ${amount}`)).join(' ');
+    if (/invalid|error/i.test(out)) throw new Error(out);
+    game.addLog(`Dinero de la empresa ${id} fijado en ${amount} desde el panel`);
+    await game.refresh().catch(() => {});
+  },
   'POST /api/map/refresh': async () => ({ map: await game.generateMap() }),
   'POST /api/actions/restore': async () => {
     users.restoreAllActions();
