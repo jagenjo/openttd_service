@@ -47,7 +47,7 @@
   pre#log { height:220px; overflow:auto; background:#0d141c; border:1px solid var(--line); padding:6px; border-radius:6px; font:11px/1.35 var(--mono); margin:0 0 6px; white-space:pre-wrap; }
   #toast { position:fixed; bottom:14px; right:14px; background:var(--fg); color:var(--bg); padding:6px 12px; border-radius:6px; display:none; max-width:80vw; z-index:9; }
   .big { font:700 20px/1.2 var(--mono); }
-  #mapView { position:relative; width:min(100%,640px); aspect-ratio:1; overflow:hidden; border:1px solid var(--line); border-radius:6px; background:#0d141c; cursor:grab; touch-action:none; flex:none; }
+  #mapView { position:relative; width:min(100%,640px); aspect-ratio:1; overflow:hidden; border:1px solid var(--line); border-radius:6px; background:#000; cursor:grab; touch-action:none; flex:none; }
   #mapView.drag { cursor:grabbing; }
   #mapImg { position:absolute; left:0; top:0; transform-origin:0 0; image-rendering:pixelated; user-select:none; display:none; }
   #mapZoom { position:absolute; top:6px; right:6px; display:flex; flex-direction:column; gap:3px; }
@@ -65,7 +65,7 @@
     <h2>Ritmo y economía <span class="muted" style="text-transform:none;letter-spacing:0">· se aplican también a la partida en marcha</span></h2>
     <form id="paceForm" class="row" style="align-items:flex-end;gap:12px">
       <label style="margin:0;width:230px">Minutos reales por año de juego <input name="minutes_per_calendar_year" type="number" min="1" max="10080"></label>
-      <label style="margin:0;width:230px">Factor de ingresos por carga (1 = normal) <input name="money_factor" type="number" min="0.01" max="10" step="0.05"></label>
+      <label style="margin:0;width:330px">Factor económico: ingresos, costes de vehículos, mantenimiento e intereses (1 = normal) <input name="money_factor" type="number" min="0.01" max="10" step="0.05"></label>
       <button class="primary">Aplicar</button>
       <span class="muted" id="paceInfo"></span>
     </form>
@@ -250,8 +250,10 @@ function applyMapView() {
   const v = $('#mapView'), img = $('#mapImg');
   const fit = v.clientWidth / (img.naturalWidth || 1);
   // El mapa no puede salirse del recuadro.
-  mapView.x = Math.min(0, Math.max(v.clientWidth - fit * mapView.k * (img.naturalWidth || 1), mapView.x));
-  mapView.y = Math.min(0, Math.max(v.clientHeight - fit * mapView.k * (img.naturalHeight || 1), mapView.y));
+  // El mapa se puede arrastrar fuera del marco (se ve negro); siempre queda a la vista un trozo.
+  const margin = 48, w = fit * mapView.k * (img.naturalWidth || 1), h = fit * mapView.k * (img.naturalHeight || 1);
+  mapView.x = Math.min(v.clientWidth - margin, Math.max(margin - w, mapView.x));
+  mapView.y = Math.min(v.clientHeight - margin, Math.max(margin - h, mapView.y));
   img.style.transform = `translate(${mapView.x}px, ${mapView.y}px) scale(${fit * mapView.k})`;
 }
 function zoomMap(factor, cx, cy) {

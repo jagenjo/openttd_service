@@ -47,6 +47,7 @@ export class Game extends EventEmitter {
     this.root = root;
     this.bin = path.join(root, 'build', 'server', 'openttd');
     this.dataDir = path.join(root, 'runtime', 'server');
+    this.financeFile = path.join(root, 'runtime', 'finance.json');
     this.settingsFile = path.join(root, 'runtime', 'settings.json');
     this.template = path.join(root, 'server', 'openttd.cfg');
     this.proc = null;
@@ -278,6 +279,78 @@ export class Game extends EventEmitter {
     if (this.current === cur) this.current = null;
   }
 
+  // Finanzas mensuales por empresa. El juego solo da acumulados del año; aquí se restan los del
+  // inicio de mes. Se guarda en runtime/finance.json para no perder el mes en curso al reiniciar.
+  async updateFinance() {
+    if (!this.finance) {
+      try { this.finance = JSON.parse(fs.readFileSync(this.financeFile, 'utf8')); } catch { this.finance = { month: null, companies: {} }; }
+    }
+    const month = this.date?.match(/\d{4}-\d{2}/)?.[0];
+    if (!month) return;
+    const out = await this.command('company_finance');
+    const keys = ['cargo', 'run', 'property', 'interest'];
+    const f = this.finance;
+    const rolled = f.month && f.month !== month;
+    const seen = new Set();
+    for (const l of out) {
+      const m = l.match(/^#:(\d+) cargo:(-?\d+) run:(-?\d+) property:(-?\d+) interest:(-?\d+)/);
+      if (!m) continue;
+      const id = m[1];
+      seen.add(id);
+      const cum = Object.fromEntries(keys.map((k, i) => [k, Number(m[i + 2])]));
+      let st = f.companies[id];
+      if (!st) st = f.companies[id] = { base: cum, last: cum, prev: null };
+      if (rolled) {
+        st.prev = Object.fromEntries(keys.map((k) => [k, st.last[k] - st.base[k]]));
+        st.base = cum;
+      }
+      for (const k of keys) if (cum[k] < st.base[k]) st.base = { ...st.base, [k]: 0 }; // año nuevo: el acumulado vuelve a 0
+      st.last = cum;
+    }
+    for (const id of Object.keys(f.companies)) if (!seen.has(id)) delete f.companies[id];
+    await this.updateHistory(month);
+    f.month = month;
+    if (rolled || Date.now() - (this.financeSaved || 0) > 30000) {
+      this.financeSaved = Date.now();
+      try { fs.writeFileSync(this.financeFile, JSON.stringify(f)); } catch {}
+    }
+  }
+
+  // Ingresos y gastos por trimestre: son los datos que el propio juego guarda en la partida
+  // (los de la gráfica de finanzas). El trimestre 0 es el actual y los demás, anteriores.
+  async updateHistory(month) {
+    const out = await this.command('company_history');
+    let year = Number(month.slice(0, 4));
+    let quarter = Math.floor((Number(month.slice(5, 7)) - 1) / 3);
+    const history = {};
+    for (const l of out) {
+      const m = l.match(/^#:(\d+) q:(\d+) income:(-?\d+) expenses:(-?\d+)/);
+      if (!m) continue;
+      let y = year, q = quarter - Number(m[2]);
+      while (q < 0) { q += 4; y--; }
+      const income = Number(m[3]), expenses = -Number(m[4]); // en el juego los gastos son negativos
+      (history[m[1]] ||= []).unshift({ m: `${y} T${q + 1}`, income, expenses, net: income - expenses, partial: m[2] === '0' });
+    }
+    this.history = history;
+  }
+
+  // Datos del último mes completo de una empresa (o el mes en curso si aún no hay ninguno).
+  financeOf(companyId) {
+    const st = this.finance?.companies?.[String(companyId)];
+    if (!st) return null;
+    const mtd = Object.fromEntries(Object.keys(st.last).map((k) => [k, st.last[k] - st.base[k]]));
+    const src = st.prev || mtd;
+    return {
+      history: this.history?.[String(companyId)] || [],
+      completeMonth: !!st.prev,
+      cargo: src.cargo,
+      running: src.run,
+      maintenance: src.property,
+      interest: src.interest,
+      net: src.cargo - src.run - src.property - src.interest,
+    };
+  }
+
   // Actualiza fecha, clientes y empresas; aplica la lista de jugadores permitidos.
   async refresh() {
     if (!this.proc) return;
@@ -299,6 +372,7 @@ export class Game extends EventEmitter {
         vehicles: { trains: +t, road: +r, planes: +p, ships: +s },
       }));
 
+    await this.updateFinance();
     await this.enforcePlayers();
     await this.syncActions();
     await this.syncIncome();

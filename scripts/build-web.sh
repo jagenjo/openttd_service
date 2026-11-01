@@ -33,7 +33,7 @@ rm -rf "$BUILD_DIR/web/baseset/opengfx" && mkdir -p "$BUILD_DIR/web/baseset/open
 # Solo .grf/.obg (el paquete de Ubuntu trae enlaces rotos a la documentación).
 find -L "$RUNTIME_DIR/server/baseset" -type f \( -name '*.grf' -o -name '*.obg' -o -name '*.tar' \) \
   -exec cp {} "$BUILD_DIR/web/baseset/opengfx/" \;
-rm -f "$BUILD_DIR/web/openttd.js"  # fuerza el reempaquetado de openttd.data
+rm -f "$BUILD_DIR"/web/openttd.{js,html,wasm,data}  # fuerza el reenlazado y el reempaquetado de openttd.data
 emmake make -C "$BUILD_DIR/web" -j "$JOBS"
 
 # 3) Empaquetar en build/www: intro y login en la raíz, el juego en play/.

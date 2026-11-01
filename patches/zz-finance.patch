@@ -1,0 +1,51 @@
+diff --git a/src/console_cmds.cpp b/src/console_cmds.cpp
+--- a/src/console_cmds.cpp
++++ b/src/console_cmds.cpp
+@@ -2053,6 +2053,38 @@
+ 	return true;
+ }
+ 
++/** openttd-service: year-to-date finances of every company, to compute monthly figures outside the game. */
++static bool ConCompanyFinance(std::span<std::string_view> argv)
++{
++	if (argv.empty()) {
++		IConsolePrint(CC_HELP, "Print the finances of this year of every company: 'company_finance'.");
++		return true;
++	}
++	for (const Company *c : Company::Iterate()) {
++		const auto &e = c->yearly_expenses[0];
++		Money cargo = -(e[EXPENSES_TRAIN_REVENUE] + e[EXPENSES_ROADVEH_REVENUE] + e[EXPENSES_AIRCRAFT_REVENUE] + e[EXPENSES_SHIP_REVENUE]);
++		Money run = e[EXPENSES_TRAIN_RUN] + e[EXPENSES_ROADVEH_RUN] + e[EXPENSES_AIRCRAFT_RUN] + e[EXPENSES_SHIP_RUN];
++		IConsolePrint(CC_DEFAULT, "#:{} cargo:{} run:{} property:{} interest:{}", c->index.base() + 1, cargo, run, e[EXPENSES_PROPERTY], e[EXPENSES_LOAN_INTEREST]);
++	}
++	return true;
++}
++
++/** openttd-service: quarterly income and expenses stored in the game (the data of the company finances graph). */
++static bool ConCompanyHistory(std::span<std::string_view> argv)
++{
++	if (argv.empty()) {
++		IConsolePrint(CC_HELP, "Print the quarterly income and expenses of every company: 'company_history'. Quarter 0 is the current one.");
++		return true;
++	}
++	for (const Company *c : Company::Iterate()) {
++		IConsolePrint(CC_DEFAULT, "#:{} q:0 income:{} expenses:{}", c->index.base() + 1, c->cur_economy.income, c->cur_economy.expenses);
++		for (uint i = 0; i < c->num_valid_stat_ent; i++) {
++			IConsolePrint(CC_DEFAULT, "#:{} q:{} income:{} expenses:{}", c->index.base() + 1, i + 1, c->old_economy[i].income, c->old_economy[i].expenses);
++		}
++	}
++	return true;
++}
++
+ static bool ConCompanies(std::span<std::string_view> argv)
+ {
+ 	if (argv.empty()) {
+@@ -3052,6 +3084,8 @@
+ 
+ 	IConsole::CmdRegister("companies",               ConCompanies);
+ 	IConsole::AliasRegister("players",               "companies");
++	IConsole::CmdRegister("company_finance",         ConCompanyFinance,   ConHookServerOnly);
++	IConsole::CmdRegister("company_history",         ConCompanyHistory,   ConHookServerOnly);
+ 
+ 	/* networking functions */
+ 

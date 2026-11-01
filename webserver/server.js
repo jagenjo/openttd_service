@@ -61,6 +61,20 @@ async function handleAuth(req, res, pathname) {
     if (!user) return json(401, { error: 'Login required' });
     const max = game.settings.actions_per_day;
     json(200, { user, max: max > 0 ? max : null, actions: game.actionsLeft(user), nextRestore: game.nextRestore() }, { 'Cache-Control': 'no-store' });
+  } else if (pathname === '/auth/company' && req.method === 'GET') {
+    // Panel de la portada: datos de la empresa del jugador con la sesión iniciada.
+    const user = currentUser(req);
+    if (!user) return json(401, { error: 'Login required' });
+    const id = users.companyOf(user);
+    const c = id && game.companies.find((x) => x.id === id);
+    if (!c) return json(200, { user, company: null }, { 'Cache-Control': 'no-store' });
+    json(200, {
+      user,
+      company: {
+        id: c.id, name: c.name, rgb: COMPANY_COLOURS[c.colour] ?? null, money: c.money, loan: c.loan, value: c.value,
+        vehicles: c.vehicles, actions: game.actionsLeft(user), finance: game.financeOf(c.id),
+      },
+    }, { 'Cache-Control': 'no-store' });
   } else if (pathname === '/auth/chat' && req.method === 'POST') {
     const user = currentUser(req);
     if (!user) return json(401, { error: 'Inicia sesión para escribir' });

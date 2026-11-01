@@ -1,6 +1,6 @@
 // Mapa del juego como imagen: un píxel por casilla.
 // El servidor de juego vuelca el mapa con `dump_map` (un byte por casilla):
-//   0 terreno, 1 agua, 2 pueblo, 3 estación, 4 industria, 16 + n = casilla de la empresa n+1.
+//   0 terreno, 1 agua, 2 pueblo, 3 estación, 4 industria, 5 aeropuerto, 6 puerto, 16 + n = casilla de la empresa n+1.
 import fs from 'node:fs';
 import { encodePng } from './png.js';
 
@@ -17,6 +17,8 @@ const BASE = [
   [120, 120, 112], // 2 pueblo
   [255, 255, 255], // 3 estación
   [0, 0, 0], // 4 industria
+  [0, 229, 255], // 5 aeropuerto
+  [190, 255, 0], // 6 puerto
 ];
 
 export function renderMap(file, companies) {
@@ -30,6 +32,21 @@ export function renderMap(file, companies) {
   const pixels = Buffer.alloc(w * h);
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) pixels[x * h + y] = src[y * w + x];
+  }
+  // Aeropuertos y puertos son pocas casillas: se ensanchan 1 píxel para que se vean.
+  const mark = Buffer.from(pixels);
+  for (let y = 0; y < w; y++) {
+    for (let x = 0; x < h; x++) {
+      const code = mark[y * h + x];
+      if (code !== 5 && code !== 6) continue;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= h || ny >= w) continue;
+          if (pixels[ny * h + nx] <= 3) pixels[ny * h + nx] = code;
+        }
+      }
+    }
   }
   const palette = Array.from({ length: 32 }, (_, i) => BASE[i] ?? [255, 0, 255]);
   for (const c of companies) palette[15 + c.id] = COMPANY_COLOURS[c.colour] ?? [255, 0, 255];

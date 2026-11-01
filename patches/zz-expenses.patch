@@ -1,0 +1,61 @@
+diff --git a/src/company_cmd.cpp b/src/company_cmd.cpp
+--- a/src/company_cmd.cpp
++++ b/src/company_cmd.cpp
+@@ -281,7 +281,7 @@
+  * @param c Company to pay the bill.
+  * @param cost Money to pay.
+  */
+-static void SubtractMoneyFromAnyCompany(Company *c, const CommandCost &cost)
++static void SubtractMoneyFromAnyCompanyUnscaled(Company *c, const CommandCost &cost)
+ {
+ 	if (cost.GetCost() == 0) return;
+ 	assert(cost.GetExpensesType() != INVALID_EXPENSES);
+@@ -307,6 +307,33 @@
+ }
+ 
+ /**
++ * openttd-service: running costs, infrastructure maintenance and loan interest follow the
++ * same percentage as the cargo income (economy.income_percent).
++ * @param type Expenses type of the payment.
++ * @param cost Original amount.
++ * @return Scaled amount.
++ */
++static Money ScaleRecurringExpense(ExpensesType type, Money cost)
++{
++	switch (type) {
++		case EXPENSES_TRAIN_RUN:
++		case EXPENSES_ROADVEH_RUN:
++		case EXPENSES_AIRCRAFT_RUN:
++		case EXPENSES_SHIP_RUN:
++		case EXPENSES_PROPERTY:
++		case EXPENSES_LOAN_INTEREST:
++			return cost * _settings_game.economy.income_percent / 100;
++		default:
++			return cost;
++	}
++}
++
++static void SubtractMoneyFromAnyCompany(Company *c, const CommandCost &cost)
++{
++	SubtractMoneyFromAnyCompanyUnscaled(c, CommandCost(cost.GetExpensesType(), ScaleRecurringExpense(cost.GetExpensesType(), cost.GetCost())));
++}
++
++/**
+  * Subtract money from the #_current_company, if the company is valid.
+  * @param cost Money to pay.
+  */
+@@ -325,12 +352,12 @@
+ {
+ 	Company *c = Company::Get(company);
+ 	uint8_t m = c->money_fraction;
+-	Money cost = cst.GetCost();
++	Money cost = ScaleRecurringExpense(cst.GetExpensesType(), cst.GetCost());
+ 
+ 	c->money_fraction = m - (uint8_t)cost;
+ 	cost >>= 8;
+ 	if (c->money_fraction > m) cost++;
+-	if (cost != 0) SubtractMoneyFromAnyCompany(c, CommandCost(cst.GetExpensesType(), cost));
++	if (cost != 0) SubtractMoneyFromAnyCompanyUnscaled(c, CommandCost(cst.GetExpensesType(), cost));
+ }
+ 
+ static constexpr void UpdateLandscapingLimit(uint32_t &limit, uint64_t per_64k_frames, uint64_t burst)

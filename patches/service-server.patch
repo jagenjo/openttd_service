@@ -50,17 +50,18 @@ diff --git a/src/console_cmds.cpp b/src/console_cmds.cpp
 index 230b386..062df25 100644
 --- a/src/console_cmds.cpp
 +++ b/src/console_cmds.cpp
-@@ -48,6 +48,9 @@
+@@ -48,6 +48,10 @@
  
  #if defined(WITH_ZLIB)
  #include "network/network_content.h"
 +#include "tile_map.h"
 +#include "map_func.h"
++#include "station_map.h"
 +#include <fstream>
  #endif /* WITH_ZLIB */
  
  #include "table/strings.h"
-@@ -145,6 +148,114 @@ static inline bool NetworkAvailable(bool echo)
+@@ -145,6 +149,114 @@ static inline bool NetworkAvailable(bool echo)
   * Check whether we are a server.
   * @return Are we a server? True when yes, false otherwise.
   */
@@ -123,13 +124,13 @@ index 230b386..062df25 100644
 +	return true;
 +}
 +
-+/** One byte per tile: 0 land, 1 water, 2 house/town road, 3 station, 4 industry, 16 + company index if company-owned. */
++/** One byte per tile: 0 land, 1 water, 2 house/town road, 3 station, 4 industry, 5 airport, 6 dock, 16 + company index if company-owned. */
 +static uint8_t ServiceMapCode(TileIndex tile)
 +{
 +	switch (GetTileType(tile)) {
 +		case MP_VOID: return 1;
 +		case MP_HOUSE: return 2;
-+		case MP_STATION: return 3;
++		case MP_STATION: return IsAirport(tile) ? 5 : IsDock(tile) ? 6 : 3;
 +		case MP_INDUSTRY: return 4;
 +		case MP_WATER: {
 +			Owner o = GetTileOwner(tile);
@@ -175,7 +176,7 @@ index 230b386..062df25 100644
  static ConsoleHookResult ConHookServerOnly(bool echo)
  {
  	if (!NetworkAvailable(echo)) return CHR_DISALLOW;
-@@ -2957,6 +3068,10 @@ void IConsoleStdLibRegister()
+@@ -2957,6 +3069,10 @@ void IConsoleStdLibRegister()
  
  	IConsole::CmdRegister("connect",                 ConNetworkConnect,   ConHookClientOnly);
  	IConsole::CmdRegister("clients",                 ConNetworkClients,   ConHookNeedNetwork);

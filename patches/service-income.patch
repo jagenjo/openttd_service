@@ -29,8 +29,8 @@ index 0b32a4a..663c767 100644
  STR_CONFIG_SETTING_ECONOMY_TYPE_SMOOTH                          :Smooth
  STR_CONFIG_SETTING_ECONOMY_TYPE_FROZEN                          :Frozen
  
-+STR_CONFIG_SETTING_INCOME_PERCENT                                :Cargo income: {STRING2}
-+STR_CONFIG_SETTING_INCOME_PERCENT_HELPTEXT                       :Percentage of the normal payment that companies receive for delivering cargo
++STR_CONFIG_SETTING_INCOME_PERCENT                                :Economy factor (income and recurring costs): {STRING2}
++STR_CONFIG_SETTING_INCOME_PERCENT_HELPTEXT                       :Percentage of the normal payment received for delivering cargo; also applied to vehicle running costs, infrastructure maintenance and loan interest
  STR_CONFIG_SETTING_FEEDER_PAYMENT_SHARE                         :Percentage of leg profit to pay in feeder systems: {STRING2}
  STR_CONFIG_SETTING_FEEDER_PAYMENT_SHARE_HELPTEXT                :Percentage of income given to the intermediate legs in feeder systems, giving more control over the income
  

@@ -48,8 +48,20 @@
   .chip span { display:block; color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
   #speed { margin:6px 2px 0; font-size:12px; }
 
+  /* Mi empresa */
+  .fin { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:6px; }
+  .fin div { background:var(--panel2); border:1px solid var(--line); border-radius:6px; padding:5px 8px; }
+  .fin b { display:block; font:700 15px/1.2 var(--mono); }
+  .fin span { display:block; color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
+  .fin .pos { color:var(--ok); } .fin .neg { color:var(--bad); }
+
+  h2.tabs { gap:4px; }
+  .tab { display:flex; align-items:center; gap:5px; padding:3px 9px; border-radius:6px; color:var(--muted); text-decoration:none; border:1px solid transparent; }
+  .tab.on { color:var(--accent); background:var(--panel2); border-color:var(--line); }
+  #graphLegend { margin:0 0 6px; } #graphLegend .sw { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; }
+
   /* Mapa */
-  #mapView { position:relative; width:100%; aspect-ratio:1; max-height:76vh; overflow:hidden; background:#0d141c; border:1px solid var(--line); border-radius:6px; cursor:grab; touch-action:none; }
+  #mapView { position:relative; width:100%; aspect-ratio:1; max-height:76vh; overflow:hidden; background:#000; border:1px solid var(--line); border-radius:6px; cursor:grab; touch-action:none; }
   #mapView.drag { cursor:grabbing; }
   #mapImg { position:absolute; left:0; top:0; transform-origin:0 0; image-rendering:pixelated; user-select:none; display:none; }
   #mapZoom { position:absolute; top:6px; right:6px; display:flex; flex-direction:column; gap:3px; }
@@ -149,13 +161,23 @@
   </section>
 
   <div class="col">
+    <section id="myCo" style="display:none">
+      <h2><svg class="i"><use href="#i-building"/></svg><span id="myCoName">Mi empresa</span> <span class="sub" id="myCoSub"></span></h2>
+      <div class="fin" id="myCoFin"></div>
+    </section>
     <section>
-      <h2><svg class="i"><use href="#i-map"/></svg>Mapa <span class="sub" id="mapInfo"></span></h2>
+      <h2 class="tabs"><a href="#" class="tab on" data-tab="map"><svg class="i"><use href="#i-map"/></svg>Mapa</a><a href="#" class="tab" data-tab="graph" id="graphTab" style="display:none"><svg class="i"><use href="#i-trophy"/></svg>Evolución</a><span class="sub" id="mapInfo"></span></h2>
+      <div id="graphPane" style="display:none">
+        <div class="legend" id="graphLegend"><span><i class="sw" style="background:#4ade80"></i>Ingresos</span><span><i class="sw" style="background:#f87171"></i>Gastos</span><span><i class="sw" style="background:#f2a93b"></i>Neto</span><span class="muted" id="graphNote"></span></div>
+        <svg id="graph" viewBox="0 0 600 340" preserveAspectRatio="none" style="width:100%;height:auto;aspect-ratio:600/340;background:#0d141c;border:1px solid var(--line);border-radius:6px"></svg>
+      </div>
+      <div id="mapPane">
       <div id="mapView" title="Arrastra para mover, rueda para zoom, doble clic para restablecer">
         <img id="mapImg" alt="Mapa del juego" draggable="false">
         <div id="mapZoom"><button data-zoom="1.5">+</button><button data-zoom="0.67">−</button><button data-zoom="0">⟲</button></div>
       </div>
       <div class="legend" id="legend"></div>
+      </div>
     </section>
 
     <section>
@@ -197,8 +219,10 @@ const mapView = { x: 0, y: 0, k: 1 };
 function applyMapView() {
   const v = $('#mapView'), img = $('#mapImg');
   const fit = v.clientWidth / (img.naturalWidth || 1);
-  mapView.x = Math.min(0, Math.max(v.clientWidth - fit * mapView.k * (img.naturalWidth || 1), mapView.x));
-  mapView.y = Math.min(0, Math.max(v.clientHeight - fit * mapView.k * (img.naturalHeight || 1), mapView.y));
+  // El mapa se puede arrastrar fuera del marco (se ve negro); siempre queda a la vista un trozo.
+  const margin = 48, w = fit * mapView.k * (img.naturalWidth || 1), h = fit * mapView.k * (img.naturalHeight || 1);
+  mapView.x = Math.min(v.clientWidth - margin, Math.max(margin - w, mapView.x));
+  mapView.y = Math.min(v.clientHeight - margin, Math.max(margin - h, mapView.y));
   img.style.transform = `translate(${mapView.x}px, ${mapView.y}px) scale(${fit * mapView.k})`;
 }
 function zoomMap(factor, cx, cy) {
@@ -251,7 +275,7 @@ function render(d) {
   $('#registered').textContent = d.registered;
   $('#companies').textContent = d.companies;
   $('#vehicles').textContent = Object.values(d.vehicles).reduce((a, b) => a + b, 0);
-  $('#speed').textContent = `1 año de juego = ${(d.minutesPerYear / 60).toFixed(1)} h reales · ingresos por carga ×${d.moneyFactor ?? 1}`;
+  $('#speed').textContent = `1 año de juego = ${(d.minutesPerYear / 60).toFixed(1)} h reales · ingresos y costes ×${d.moneyFactor ?? 1}`;
   $('#apd').textContent = d.actionsPerDay > 0 ? `${d.actionsPerDay} acciones` : 'sin límite';
   $('#ranking').innerHTML = d.ranking.map((c) => `<tr>
       <td class="${c.rank <= 3 ? 'medal' : ''}">${c.rank}</td>
@@ -278,6 +302,7 @@ async function refresh() {
 }
 refresh();
 setInterval(refresh, 10000);
+setInterval(() => { if ($('#myCo').style.display !== 'none') loadCompany(); }, 10000);
 
 // --- Mensajes ---
 let chatLast = 0;
@@ -329,7 +354,63 @@ function applySession(me) {
   $('#logout').style.display = on ? '' : 'none';
   $('#chatText').disabled = !on;
   $('#chatForm button').disabled = !on;
+  loadCompany();
   $('#chatText').placeholder = on ? 'Escribe un mensaje para los demás jugadores…' : 'Inicia sesión para escribir un mensaje';
+}
+// --- Pestañas del mapa y gráfico de evolución ---
+let graphData = null, tab = 'map';
+function showTab(t) {
+  tab = t;
+  document.querySelectorAll('.tab').forEach((a) => a.classList.toggle('on', a.dataset.tab === t));
+  $('#mapPane').style.display = t === 'map' ? '' : 'none';
+  $('#graphPane').style.display = t === 'graph' ? '' : 'none';
+  if (t === 'graph') drawGraph();
+}
+document.querySelectorAll('.tab').forEach((a) => { a.onclick = (e) => { e.preventDefault(); showTab(a.dataset.tab); }; });
+function drawGraph() {
+  const svg = $('#graph');
+  const h = graphData || [];
+  const W = 600, H = 340, L = 64, R = 12, T = 12, B = 26;
+  if (h.length < 2) { svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" fill="#8b9bb0" text-anchor="middle" font-size="13">Aún no hay suficientes datos: el juego guarda un punto por trimestre</text>`; $('#graphNote').textContent = ''; return; }
+  const all = h.flatMap((p) => [p.income, p.expenses, p.net, 0]);
+  let lo = Math.min(...all), hi = Math.max(...all);
+  if (hi === lo) hi = lo + 1;
+  const pad = (hi - lo) * 0.08; lo -= lo < 0 ? pad : 0; hi += pad;
+  const x = (i) => L + (i * (W - L - R)) / (h.length - 1);
+  const y = (v) => T + ((hi - v) * (H - T - B)) / (hi - lo);
+  let out = '';
+  for (let i = 0; i <= 4; i++) {
+    const v = lo + ((hi - lo) * i) / 4, yy = y(v);
+    out += `<line x1="${L}" x2="${W - R}" y1="${yy}" y2="${yy}" stroke="${Math.abs(v) < (hi - lo) / 40 ? '#4a5a70' : '#1c2735'}"/><text x="${L - 6}" y="${yy + 4}" fill="#8b9bb0" font-size="10" text-anchor="end">${money(Math.round(v))}</text>`;
+  }
+  const step = Math.max(1, Math.ceil(h.length / 8));
+  h.forEach((p, i) => { if (i % step === 0 || i === h.length - 1) out += `<text x="${x(i)}" y="${H - 8}" fill="#8b9bb0" font-size="10" text-anchor="${i === h.length - 1 ? 'end' : 'middle'}">${p.m}</text>`; });
+  const line = (k, col) => `<polyline fill="none" stroke="${col}" stroke-width="2" points="${h.map((p, i) => `${x(i).toFixed(1)},${y(p[k]).toFixed(1)}`).join(' ')}"/>` +
+    h.map((p, i) => `<circle cx="${x(i).toFixed(1)}" cy="${y(p[k]).toFixed(1)}" r="2.5" fill="${col}"${p.partial ? ' fill-opacity=".4"' : ''}><title>${p.m}${p.partial ? ' (en curso)' : ''}: ${money(p[k])}</title></circle>`).join('');
+  svg.innerHTML = out + line('income', '#4ade80') + line('expenses', '#f87171') + line('net', '#f2a93b');
+  $('#graphNote').textContent = 'por trimestre de juego · el último punto es el trimestre en curso';
+}
+
+// --- Panel de la empresa del jugador ---
+async function loadCompany() {
+  let d = null;
+  try { const r = await fetch('/auth/company', { cache: 'no-store' }); if (r.ok) d = await r.json(); } catch {}
+  const c = d && d.company;
+  $('#myCo').style.display = c ? '' : 'none';
+  $('#graphTab').style.display = c ? '' : 'none';
+  if (!c) { graphData = null; if (tab === 'graph') showTab('map'); return; }
+  graphData = c.finance?.history || [];
+  if (tab === 'graph') drawGraph();
+  const f = c.finance;
+  const cls = (n) => (n > 0 ? 'pos' : n < 0 ? 'neg' : '');
+  const box = (label, n, signed) => `<div><span>${label}</span><b class="${signed ? cls(n) : ''}">${money(n)}</b></div>`;
+  $('#myCoName').textContent = c.name;
+  $('#myCoName').style.color = c.rgb ? `rgb(${c.rgb})` : '';
+  $('#myCoSub').textContent = f ? (f.completeMonth ? 'último mes completo' : 'mes en curso') : '';
+  $('#myCoFin').innerHTML =
+    box('Dinero', c.money, true) + box('Préstamo', c.loan) + box('Valor', c.value) +
+    (f ? box('Ingreso neto/mes', f.net, true) + box('Ingresos por carga', f.cargo) + box('Costes de vehículos', f.running) +
+      box('Mantenimiento', f.maintenance) + box('Intereses', f.interest) : '');
 }
 const loadSession = () => fetch('/auth/me', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then(applySession).catch(() => applySession(null));
 loadSession();
