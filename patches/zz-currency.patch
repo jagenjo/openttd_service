@@ -1,0 +1,12 @@
+diff --git a/src/table/settings/locale_settings.ini b/src/table/settings/locale_settings.ini
+--- a/src/table/settings/locale_settings.ini
++++ b/src/table/settings/locale_settings.ini
+@@ -54,7 +54,7 @@
+ type     = SLE_UINT8
+ from     = SLV_97
+ flags    = SettingFlag::NoNetworkSync
+-def      = 0
++def      = 2 /* openttd-service: euro */
+ max      = CURRENCY_END - 1
+ full     = _locale_currencies
+ post_cb  = [](auto) { MarkWholeScreenDirty(); }

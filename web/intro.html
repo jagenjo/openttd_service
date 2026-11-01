@@ -12,18 +12,21 @@
   svg.i { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex:none; vertical-align:-3px; }
 
   /* Barra superior */
-  header { display:flex; align-items:center; gap:10px; padding:0 14px; height:46px; background:#0d141c; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; }
-  .brand { display:flex; align-items:center; gap:8px; flex:1; min-width:0; }
-  .brand svg.i { width:22px; height:22px; color:var(--accent); }
-  .brand h1 { margin:0; font-size:16px; font-weight:700; letter-spacing:.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  header { display:flex; align-items:center; gap:8px; padding:0 10px; height:36px; background:#0d141c; border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; }
+  .brand { display:flex; align-items:center; gap:6px; min-width:0; }
+  .hstats { display:flex; align-items:center; gap:5px; flex:1; min-width:0; flex-wrap:wrap; margin-left:6px; }
+  .hchip { display:inline-flex; align-items:center; gap:4px; height:22px; padding:0 7px; background:var(--panel); border:1px solid var(--line); border-radius:6px; color:var(--accent); }
+  .hchip b { font:600 12px var(--mono); color:var(--fg); }
+  .brand svg.i { width:19px; height:19px; color:var(--accent); }
+  .brand h1 { margin:0; font-size:14px; font-weight:700; letter-spacing:.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   #who { display:flex; align-items:center; gap:6px; color:var(--muted); }
   #who:empty { display:none; }
   #loginForm { display:flex; gap:6px; align-items:center; margin:0; }
-  .in { display:flex; align-items:center; gap:6px; height:30px; padding:0 8px; background:var(--panel); border:1px solid var(--line); border-radius:6px; color:var(--muted); }
+  .in { display:flex; align-items:center; gap:5px; height:24px; padding:0 8px; background:var(--panel); border:1px solid var(--line); border-radius:6px; color:var(--muted); }
   .in:focus-within { border-color:var(--accent); color:var(--accent); }
-  .in input { width:104px; background:none; border:0; outline:0; color:var(--fg); font:inherit; }
+  .in input { width:84px; font-size:12px; background:none; border:0; outline:0; color:var(--fg); font:inherit; }
   #loginError { color:var(--bad); font-size:12px; max-width:170px; }
-  .btn { display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 12px; border:1px solid var(--line); border-radius:6px; background:var(--panel2); color:var(--fg);
+  .btn { display:inline-flex; align-items:center; gap:5px; height:24px; padding:0 9px; border:1px solid var(--line); border-radius:6px; background:var(--panel2); color:var(--fg);
          font:inherit; font-weight:600; text-decoration:none; cursor:pointer; transition:background .12s, border-color .12s, transform .05s; }
   .btn:hover:not(:disabled) { background:#2a3a50; border-color:#3a4f69; }
   .btn:active:not(:disabled) { transform:translateY(1px); }
@@ -39,14 +42,6 @@
   h2 { display:flex; align-items:center; gap:6px; margin:0 0 6px; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); }
   h2 .sub { margin-left:auto; text-transform:none; letter-spacing:0; font-weight:400; }
   .muted { color:var(--muted); }
-
-  /* Estadísticas: una sola franja de fichas */
-  .stats { display:flex; flex-wrap:wrap; gap:8px; }
-  .chip { flex:1 1 130px; display:flex; align-items:center; gap:9px; padding:6px 10px; background:var(--panel2); border:1px solid var(--line); border-radius:8px; }
-  .chip svg.i { width:20px; height:20px; color:var(--accent); }
-  .chip b { display:block; font:700 17px/1.1 var(--mono); }
-  .chip span { display:block; color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
-  #speed { margin:6px 2px 0; font-size:12px; }
 
   /* Mi empresa */
   .fin { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:6px; }
@@ -136,29 +131,27 @@
 
 <header>
   <div class="brand"><svg class="i"><use href="#i-train"/></svg><h1 id="name">OpenTTD</h1></div>
+  <div class="hstats">
+    <span class="hchip" id="dateChip" title="Fecha del juego"><svg class="i"><use href="#i-calendar"/></svg><b id="date">—</b></span>
+    <span class="hchip" title="Conectados ahora"><svg class="i"><use href="#i-wifi"/></svg><b id="onlineN">0</b></span>
+    <span class="hchip" title="Jugadores registrados"><svg class="i"><use href="#i-users"/></svg><b id="registered">0</b></span>
+    <span class="hchip" title="Empresas"><svg class="i"><use href="#i-building"/></svg><b id="companies">0</b></span>
+    <span class="hchip" title="Vehículos"><svg class="i"><use href="#i-truck"/></svg><b id="vehicles">0</b></span>
+    <span class="hchip" id="statusChip" title="Servidor"><svg class="i"><use href="#i-power"/></svg><b id="status">—</b></span>
+    <span id="speed" hidden></span>
+  </div>
   <span id="who"></span>
   <form id="loginForm">
     <label class="in"><svg class="i"><use href="#i-user"/></svg><input name="user" placeholder="Usuario" autocomplete="username" maxlength="24" required></label>
     <label class="in"><svg class="i"><use href="#i-lock"/></svg><input name="password" type="password" placeholder="Contraseña" autocomplete="current-password" required></label>
-    <button class="btn" title="Iniciar sesión"><svg class="i"><use href="#i-login"/></svg><span class="lbl">Entrar</span></button>
+    <button class="btn" title="Iniciar sesión"><svg class="i"><use href="#i-login"/></svg></button>
     <span id="loginError"></span>
   </form>
-  <a class="btn ghost" id="logout" href="#" style="display:none" title="Cerrar sesión"><svg class="i"><use href="#i-logout"/></svg><span class="lbl">Salir</span></a>
-  <a class="btn play" href="/play/" target="_blank" rel="noopener"><svg class="i"><use href="#i-play"/></svg>Jugar</a>
+  <a class="btn ghost" id="logout" href="#" style="display:none" title="Cerrar sesión"><svg class="i"><use href="#i-logout"/></svg></a>
+  <a class="btn play" href="/play/" target="_blank" rel="noopener" title="Abrir el juego"><svg class="i"><use href="#i-play"/></svg>Jugar</a>
 </header>
 
 <main>
-  <section class="wide">
-    <div class="stats">
-      <div class="chip"><svg class="i"><use href="#i-calendar"/></svg><div><b id="date">—</b><span>Fecha del juego</span></div></div>
-      <div class="chip"><svg class="i"><use href="#i-wifi"/></svg><div><b id="onlineN">0</b><span>Conectados</span></div></div>
-      <div class="chip"><svg class="i"><use href="#i-users"/></svg><div><b id="registered">0</b><span>Registrados</span></div></div>
-      <div class="chip"><svg class="i"><use href="#i-building"/></svg><div><b id="companies">0</b><span>Empresas</span></div></div>
-      <div class="chip"><svg class="i"><use href="#i-truck"/></svg><div><b id="vehicles">0</b><span>Vehículos</span></div></div>
-      <div class="chip"><svg class="i"><use href="#i-power"/></svg><div><b id="status">—</b><span>Servidor</span></div></div>
-    </div>
-    <p class="muted" id="speed"></p>
-  </section>
 
   <div class="col">
     <section id="myCo" style="display:none">
@@ -210,7 +203,7 @@
 <script>
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
-const money = (n) => (n < 0 ? '-£' : '£') + Math.abs(n).toLocaleString('es-ES');
+const money = (n) => (n < 0 ? '-€' : '€') + Math.abs(n * 2).toLocaleString('es-ES'); // el euro vale 2 libras base en OpenTTD
 const swatch = (rgb) => `<span class="sw" style="background:${rgb ? `rgb(${rgb})` : '#f0f'}"></span>`;
 let mapTime = null;
 
@@ -269,13 +262,14 @@ function render(d) {
   document.title = d.name;
   $('#name').textContent = d.name;
   $('#date').textContent = d.date || '—';
-  $('#status').textContent = d.running ? 'En marcha' : 'Detenido';
+  $('#status').textContent = d.running ? '●' : '○';
+  $('#statusChip').title = d.running ? 'Servidor en marcha' : 'Servidor detenido';
   $('#status').style.color = d.running ? 'var(--ok)' : '#e06666';
   $('#onlineN').textContent = d.online.length;
   $('#registered').textContent = d.registered;
   $('#companies').textContent = d.companies;
   $('#vehicles').textContent = Object.values(d.vehicles).reduce((a, b) => a + b, 0);
-  $('#speed').textContent = `1 año de juego = ${(d.minutesPerYear / 60).toFixed(1)} h reales · ingresos y costes ×${d.moneyFactor ?? 1}`;
+  $('#dateChip').title = `Fecha del juego · 1 año = ${(d.minutesPerYear / 60).toFixed(1)} h reales · ingresos y costes ×${d.moneyFactor ?? 1}`;
   $('#apd').textContent = d.actionsPerDay > 0 ? `${d.actionsPerDay} acciones` : 'sin límite';
   $('#ranking').innerHTML = d.ranking.map((c) => `<tr>
       <td class="${c.rank <= 3 ? 'medal' : ''}">${c.rank}</td>
@@ -408,7 +402,7 @@ async function loadCompany() {
   $('#myCoName').style.color = c.rgb ? `rgb(${c.rgb})` : '';
   $('#myCoSub').textContent = f ? (f.completeMonth ? 'último mes completo' : 'mes en curso') : '';
   $('#myCoFin').innerHTML =
-    box('Dinero', c.money, true) + box('Préstamo', c.loan) + box('Valor', c.value) +
+    box('Dinero', c.money, true) + (c.loan > 0 ? box('Préstamo', c.loan) : '') + box('Valor', c.value) +
     (f ? box('Ingreso neto/mes', f.net, true) + box('Ingresos por carga', f.cargo) + box('Costes de vehículos', f.running) +
       box('Mantenimiento', f.maintenance) + box('Intereses', f.interest) : '');
 }
