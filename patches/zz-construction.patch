@@ -1,0 +1,82 @@
+--- a/src/command.cpp
++++ b/src/command.cpp
+@@ -209,6 +209,16 @@
+ }
+ 
+ /**
++ * openttd-service: scale the cost of a top-level construction command by economy.construction_percent.
++ * The setting is part of the savegame, so server and clients agree (also for the cost estimate).
++ * @param res Command result, may be modified.
++ */
++void CommandHelperBase::InternalScaleConstruction(CommandCost &res)
++{
++	if (res.Succeeded()) res.ScaleCostPercent(_settings_game.economy.construction_percent);
++}
++
++/**
+  * Decide what to do with the command depending on current game state.
+  * @param cmd Command to execute.
+  * @param flags Command flags.
+--- a/src/command_func.h
++++ b/src/command_func.h
+@@ -84,10 +84,26 @@
+ 
+ template <Commands TCmd, typename T, bool THasTile> struct CommandHelper;
+ 
++/** openttd-service: commands whose cost follows economy.construction_percent (tracks, roads, stations). */
++constexpr bool IsServiceConstructionCommand(Commands cmd)
++{
++	switch (cmd) {
++		case CMD_BUILD_RAILROAD_TRACK: case CMD_BUILD_SINGLE_RAIL: case CMD_BUILD_SINGLE_SIGNAL:
++		case CMD_BUILD_SIGNAL_TRACK: case CMD_BUILD_BRIDGE: case CMD_BUILD_TUNNEL:
++		case CMD_BUILD_RAIL_STATION: case CMD_BUILD_RAIL_WAYPOINT: case CMD_BUILD_ROAD_WAYPOINT:
++		case CMD_BUILD_ROAD_STOP: case CMD_BUILD_LONG_ROAD: case CMD_BUILD_ROAD:
++		case CMD_BUILD_AIRPORT: case CMD_BUILD_DOCK:
++			return true;
++		default:
++			return false;
++	}
++}
++
+ class CommandHelperBase {
+ protected:
+ 	static void InternalDoBefore(bool top_level, bool test);
+ 	static void InternalDoAfter(CommandCost &res, DoCommandFlags flags, bool top_level, bool test);
++	static void InternalScaleConstruction(CommandCost &res); // openttd-service
+ 	static std::tuple<bool, bool, bool> InternalPostBefore(Commands cmd, CommandFlags flags, TileIndex tile, StringID err_message, bool network_command);
+ 	static void InternalPostResult(CommandCost &res, TileIndex tile, bool estimate_only, bool only_sending, StringID err_message, bool my_cmd);
+ 	static bool InternalExecutePrepTest(CommandFlags cmd_flags, TileIndex tile, Backup<CompanyID> &cur_company);
+@@ -152,6 +168,7 @@
+ 		if (counter.IsTopLevel() || !flags.Test(DoCommandFlag::Execute)) {
+ 			InternalDoBefore(counter.IsTopLevel(), true);
+ 			Tret res = CommandTraits<Tcmd>::proc(DoCommandFlags{flags}.Reset(DoCommandFlag::Execute), args...);
++			if constexpr (IsServiceConstructionCommand(Tcmd)) { if (counter.IsTopLevel()) InternalScaleConstruction(ExtractCommandCost(res)); }
+ 			InternalDoAfter(ExtractCommandCost(res), flags, counter.IsTopLevel(), true); // Can modify res.
+ 
+ 			if (ExtractCommandCost(res).Failed() || !flags.Test(DoCommandFlag::Execute)) return res;
+@@ -161,6 +178,7 @@
+ 		 * themselves to the cost object at some point. */
+ 		InternalDoBefore(counter.IsTopLevel(), false);
+ 		Tret res = CommandTraits<Tcmd>::proc(flags, args...);
++		if constexpr (IsServiceConstructionCommand(Tcmd)) { if (counter.IsTopLevel()) InternalScaleConstruction(ExtractCommandCost(res)); }
+ 		InternalDoAfter(ExtractCommandCost(res), flags, counter.IsTopLevel(), false);
+ 
+ 		return res;
+--- a/src/command_type.h
++++ b/src/command_type.h
+@@ -103,6 +103,15 @@
+ 	void AddCost(CommandCost &&cmd_cost);
+ 
+ 	/**
++	 * openttd-service: scale the cost of the command by a percentage.
++	 * @param percent Percentage to apply.
++	 */
++	inline void ScaleCostPercent(int percent)
++	{
++		this->cost = this->cost * percent / 100;
++	}
++
++	/**
+ 	 * Multiplies the cost of the command by the given factor.
+ 	 * @param factor factor to multiply the costs with
+ 	 */

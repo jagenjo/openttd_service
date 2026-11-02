@@ -28,6 +28,8 @@ export const DEFAULT_SETTINGS = {
   seed: null, // null = aleatoria
   money_factor: 0.5, // multiplicador de los ingresos por carga (1 = normal)
   maintenance_factor: 1, // costes de mantenimiento: funcionamiento de vehículos e infraestructura, independiente del factor económico (1 = normal)
+  construction_factor: 1, // coste de construir vías, carreteras y estaciones (1 = normal)
+  construction_factor: 1, // coste de construir vías, carreteras y estaciones (1 = normal)
   loading_factor: 1, // velocidad de carga y descarga en estaciones (1 = normal, 0.5 = el doble de lento)
   server_name: 'OpenTTD Slow Time',
   server_password: '',
@@ -80,41 +82,83 @@ export class Game extends EventEmitter {
 
   saveSettings(patch) {
     const s = { ...this.settings };
+    const patchHas = (k) => patch[k] !== '' && patch[k] != null;
     const ints = ['minutes_per_calendar_year', 'starting_year', 'map_x', 'map_y', 'max_companies', 'actions_per_day'];
     for (const [k, v] of Object.entries(patch)) {
       if (!(k in DEFAULT_SETTINGS)) continue;
       s[k] = ints.includes(k) ? Number(v) : v;
     }
-    s.minutes_per_calendar_year = Math.min(10080, Math.max(1, s.minutes_per_calendar_year | 0));
+    s.minutes_per_calendar_year = Math.min(10080, Math.max(1, Math.round(Number(s.minutes_per_calendar_year)) || this.settings.minutes_per_calendar_year));
     s.map_x = Math.min(12, Math.max(6, s.map_x | 0));
     s.map_y = Math.min(12, Math.max(6, s.map_y | 0));
     for (const [k, [, , min, max, def]] of Object.entries(MAPGEN)) {
       const n = Math.round(Number(s[k]));
       s[k] = Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
     }
-    const f = Number(s.money_factor);
-    s.money_factor = Number.isFinite(f) ? Math.min(10, Math.max(0.01, Math.round(f * 100) / 100)) : 0.5;
-    const lf = Number(s.loading_factor);
-    s.loading_factor = Number.isFinite(lf) ? Math.min(10, Math.max(0.01, Math.round(lf * 100) / 100)) : 1;
-    const tf = Number(s.maintenance_factor);
-    s.maintenance_factor = Number.isFinite(tf) ? Math.min(10, Math.max(0, Math.round(tf * 100) / 100)) : 1;
+    // Los valores no válidos se ajustan al valor válido más cercano (o se conserva el anterior si no son un número).
+    const nearest = (v, old, min, max, dec = 2) => {
+      const n = Number(v);
+      if (v === '' || v == null || !Number.isFinite(n)) return old;
+      const k = 10 ** dec;
+      return Math.min(max, Math.max(min, Math.round(n * k) / k));
+    };
+    s.money_factor = nearest(s.money_factor, this.settings.money_factor, 0.01, 10);
+    s.loading_factor = nearest(s.loading_factor, this.settings.loading_factor, 0.01, 10);
+    s.maintenance_factor = nearest(s.maintenance_factor, this.settings.maintenance_factor, 0, 100);
+    s.construction_factor = nearest(s.construction_factor, this.settings.construction_factor, 0, 10);
     // Semilla: vacía o 0 = aleatoria.
     s.seed = s.seed === '' || s.seed == null || Number(s.seed) <= 0 ? null : Math.min(4294967294, Math.floor(Number(s.seed)));
     s.max_companies = Math.min(15, Math.max(1, s.max_companies | 0));
-    s.actions_per_day = Math.min(100000, Math.max(0, s.actions_per_day | 0)); // 0 = sin límite
+    s.actions_per_day = Number.isFinite(s.actions_per_day) && patchHas('actions_per_day') ? Math.min(100000, Math.max(0, Math.round(s.actions_per_day))) : this.settings.actions_per_day; // 0 = sin límite
     const oldMax = this.settings.actions_per_day;
     const oldFactor = this.settings.money_factor;
     const oldLoading = this.settings.loading_factor;
     const oldTrain = this.settings.maintenance_factor;
+    const oldBuild = this.settings.construction_factor;
     const oldMinutes = this.settings.minutes_per_calendar_year;
     this.settings = s;
-    if (s.money_factor !== oldFactor || s.loading_factor !== oldLoading || s.maintenance_factor !== oldTrain || s.minutes_per_calendar_year !== oldMinutes) this.moneySynced = false; // se aplica a la partida en marcha
+    if (s.money_factor !== oldFactor || s.loading_factor !== oldLoading || s.maintenance_factor !== oldTrain || s.construction_factor !== oldBuild || s.minutes_per_calendar_year !== oldMinutes) this.moneySynced = false; // se aplica a la partida en marcha
     if (s.actions_per_day !== oldMax) {
       this.players.adjustActions(oldMax, s.actions_per_day);
       this.actionsSynced = false; // se vuelve a dar a cada empresa su valor en la próxima pasada
     }
     fs.writeFileSync(this.settingsFile, JSON.stringify(s, null, 2));
     return s;
+  }
+
+  // Configuraciones con nombre (runtime/presets.json): cada una guarda todos los ajustes salvo la contraseña.
+  get presetsFile() {
+    return path.join(this.root, 'runtime', 'presets.json');
+  }
+
+  presets() {
+    try {
+      return JSON.parse(fs.readFileSync(this.presetsFile, 'utf8'));
+    } catch {
+      return {};
+    }
+  }
+
+  savePreset(name) {
+    name = String(name || '').trim().slice(0, 40);
+    if (!name) throw new Error('Falta el nombre');
+    const all = this.presets();
+    const { server_password, ...rest } = this.settings;
+    all[name] = rest;
+    fs.writeFileSync(this.presetsFile, JSON.stringify(all, null, 2));
+    return name;
+  }
+
+  loadPreset(name) {
+    const p = this.presets()[name];
+    if (!p) throw new Error('La configuración no existe');
+    return this.saveSettings(p);
+  }
+
+  deletePreset(name) {
+    const all = this.presets();
+    delete all[name];
+    fs.writeFileSync(this.presetsFile, JSON.stringify(all, null, 2));
   }
 
   // Genera openttd.cfg, private.cfg y secrets.cfg a partir de la plantilla y los ajustes del panel.
@@ -130,7 +174,7 @@ export class Game extends EventEmitter {
       landscape: s.landscape,
     };
     cfg.network = { ...cfg.network, max_companies: s.max_companies };
-    cfg.economy = { ...cfg.economy, income_percent: this.incomePercent, loading_percent: this.loadingPercent, maintenance_percent: this.maintenancePercent };
+    cfg.economy = { ...cfg.economy, income_percent: this.incomePercent, loading_percent: this.loadingPercent, maintenance_percent: this.maintenancePercent, construction_percent: this.constructionPercent };
     for (const [k, [section, name]] of Object.entries(MAPGEN)) cfg[section] = { ...cfg[section], [name]: s[k] };
     fs.writeFileSync(path.join(this.dataDir, 'openttd.cfg'), stringifyIni(cfg));
     fs.writeFileSync(path.join(this.dataDir, 'private.cfg'), stringifyIni({ network: { server_name: s.server_name } }));
@@ -139,8 +183,12 @@ export class Game extends EventEmitter {
 
   // Ingresos por carga, en % (50 = la mitad). Es un ajuste de la partida: va en la partida
   // guardada y el servidor lo propaga a los clientes, así que todos calculan lo mismo.
+  get constructionPercent() {
+    return Math.min(1000, Math.max(0, Math.round(this.settings.construction_factor * 100)));
+  }
+
   get maintenancePercent() {
-    return Math.min(1000, Math.max(0, Math.round(this.settings.maintenance_factor * 100)));
+    return Math.min(10000, Math.max(0, Math.round(this.settings.maintenance_factor * 100)));
   }
 
   get loadingPercent() {
@@ -478,6 +526,7 @@ export class Game extends EventEmitter {
     await this.command(`setting income_percent ${pct}`);
     await this.command(`setting loading_percent ${this.loadingPercent}`);
     await this.command(`setting maintenance_percent ${this.maintenancePercent}`);
+    await this.command(`setting construction_percent ${this.constructionPercent}`);
     await this.command('setting currency 2'); // euro: los clientes toman la moneda de la partida que envía el servidor
     // El ritmo del calendario también se puede cambiar con la partida en marcha.
     await this.command(`setting minutes_per_calendar_year ${this.settings.minutes_per_calendar_year}`);

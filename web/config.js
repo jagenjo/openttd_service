@@ -23,8 +23,30 @@
   window.openttd_extra_args = ['-n', `${location.hostname}:${GAME_PORT}${company}`];
 
   // El juego llama a esto cuando se sale de la partida (desconexión, expulsión, "Desconectar").
+  // Si la conexión se pierde mientras la pestaña estaba en segundo plano (o justo al volver a ella),
+  // se reconecta sola en vez de mostrar el aviso. Se evita un bucle: como máximo una vez cada 20 s.
+  let hiddenSince = document.hidden ? Date.now() : 0;
+  let visibleAgain = 0;
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { hiddenSince = Date.now(); return; }
+    visibleAgain = Date.now();
+    if (document.getElementById('disconnected')) autoReconnect(); // el aviso ya estaba puesto
+  });
+  function autoReconnect() {
+    const last = Number(sessionStorage.getItem('openttd_auto_reconnect') || 0);
+    if (Date.now() - last < 20000) return false;
+    sessionStorage.setItem('openttd_auto_reconnect', String(Date.now()));
+    location.reload();
+    return true;
+  }
+  function lostInBackground() {
+    if (document.hidden) return true;
+    return hiddenSince > 0 && Date.now() - visibleAgain < 15000 && visibleAgain > hiddenSince;
+  }
+
   window.openttd_disconnected = function () {
     if (document.getElementById('disconnected')) return;
+    if (lostInBackground() && autoReconnect()) return;
     const d = document.createElement('div');
     d.id = 'disconnected';
     d.style.cssText = 'position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:#2a3a4a';

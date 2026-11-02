@@ -31,10 +31,10 @@ index a82ccc1..44766bf 100644
  	front->load_unload_ticks = std::max(1, ticks);
  }
 diff --git a/src/lang/english.txt b/src/lang/english.txt
-index 0b32a4a..00ee2ee 100644
+index 0b32a4a..aa3d2df 100644
 --- a/src/lang/english.txt
 +++ b/src/lang/english.txt
-@@ -1971,6 +1971,12 @@ STR_CONFIG_SETTING_ECONOMY_TYPE_ORIGINAL                        :Original
+@@ -1971,6 +1971,14 @@ STR_CONFIG_SETTING_ECONOMY_TYPE_ORIGINAL                        :Original
  STR_CONFIG_SETTING_ECONOMY_TYPE_SMOOTH                          :Smooth
  STR_CONFIG_SETTING_ECONOMY_TYPE_FROZEN                          :Frozen
  
@@ -44,43 +44,47 @@ index 0b32a4a..00ee2ee 100644
 +STR_CONFIG_SETTING_LOADING_PERCENT_HELPTEXT                      :Percentage of the normal speed at which vehicles load and unload in stations
 +STR_CONFIG_SETTING_MAINTENANCE_PERCENT                            :Maintenance costs: {STRING2}
 +STR_CONFIG_SETTING_MAINTENANCE_PERCENT_HELPTEXT                   :Percentage of the normal vehicle running costs and infrastructure maintenance; independent of the economy factor
++STR_CONFIG_SETTING_CONSTRUCTION_PERCENT                         :Construction costs: {STRING2}
++STR_CONFIG_SETTING_CONSTRUCTION_PERCENT_HELPTEXT                :Percentage of the normal cost of building tracks, signals, bridges, tunnels, roads and stations
  STR_CONFIG_SETTING_FEEDER_PAYMENT_SHARE                         :Percentage of leg profit to pay in feeder systems: {STRING2}
  STR_CONFIG_SETTING_FEEDER_PAYMENT_SHARE_HELPTEXT                :Percentage of income given to the intermediate legs in feeder systems, giving more control over the income
  
 diff --git a/src/saveload/saveload.h b/src/saveload/saveload.h
-index 2b0f10c..ec8cb62 100644
+index 2b0f10c..902720d 100644
 --- a/src/saveload/saveload.h
 +++ b/src/saveload/saveload.h
-@@ -413,6 +413,10 @@ enum SaveLoadVersion : uint16_t {
+@@ -413,6 +413,11 @@ enum SaveLoadVersion : uint16_t {
  	SLV_LOCKS_UNDER_BRIDGES,                ///< 361  PR#14595 Allow locks under bridges.
  	SLV_ENGINE_MULTI_RAILTYPE,              ///< 362  PR#14357 Train engines can have multiple railtypes.
  
 +	SLV_INCOME_PERCENT,                     ///< 363  openttd-service: economy.income_percent (cargo income multiplier).
 +	SLV_LOADING_PERCENT,                    ///< 364  openttd-service: economy.loading_percent (loading speed).
-+	SLV_MAINTENANCE_PERCENT,                  ///< 365  openttd-service: economy.maintenance_percent (train running costs).
++	SLV_MAINTENANCE_PERCENT,                  ///< 365  openttd-service: economy.maintenance_percent (vehicle running costs and infrastructure maintenance).
++	SLV_CONSTRUCTION_PERCENT,               ///< 366  openttd-service: economy.construction_percent (cost of building tracks, roads and stations).
 +
  	SL_MAX_VERSION,                         ///< Highest possible saveload version
  };
  
 diff --git a/src/settings_type.h b/src/settings_type.h
-index 7a07d0d..f332ad6 100644
+index 7a07d0d..51c4e04 100644
 --- a/src/settings_type.h
 +++ b/src/settings_type.h
-@@ -538,6 +538,9 @@ struct VehicleSettings {
+@@ -538,6 +538,10 @@ struct VehicleSettings {
  
  /** Settings related to the economy. */
  struct EconomySettings {
 +	uint16_t income_percent;                 ///< openttd-service: percentage of the normal cargo income that is paid
 +	uint16_t loading_percent;                ///< openttd-service: loading and unloading speed in percent of the normal one
 +	uint16_t maintenance_percent;              ///< openttd-service: train running costs in percent of the normal ones (independent of income_percent)
++	uint16_t construction_percent;           ///< openttd-service: cost of building tracks, roads and stations in percent of the normal one
  	bool   inflation;                        ///< disable inflation
  	bool   bribe;                            ///< enable bribing the local authority
  	EconomyType type;                        ///< economy type (original/smooth/frozen)
 diff --git a/src/table/settings/economy_settings.ini b/src/table/settings/economy_settings.ini
-index de10a04..8ce32b5 100644
+index de10a04..27e3c26 100644
 --- a/src/table/settings/economy_settings.ini
 +++ b/src/table/settings/economy_settings.ini
-@@ -200,6 +200,45 @@ strval   = STR_CONFIG_SETTING_ECONOMY_TYPE_ORIGINAL
+@@ -200,6 +200,58 @@ strval   = STR_CONFIG_SETTING_ECONOMY_TYPE_ORIGINAL
  post_cb  = [](auto) { InvalidateWindowClassesData(WC_INDUSTRY_VIEW); }
  cat      = SC_BASIC
  
@@ -116,17 +120,30 @@ index de10a04..8ce32b5 100644
 +from     = SLV_MAINTENANCE_PERCENT
 +def      = 100
 +min      = 0
-+max      = 1000
++max      = 10000
 +interval = 5
 +str      = STR_CONFIG_SETTING_MAINTENANCE_PERCENT
 +strhelp  = STR_CONFIG_SETTING_MAINTENANCE_PERCENT_HELPTEXT
 +strval   = STR_CONFIG_SETTING_PERCENTAGE
 +cat      = SC_BASIC
 +
++[SDT_VAR]
++var      = economy.construction_percent
++type     = SLE_UINT16
++from     = SLV_CONSTRUCTION_PERCENT
++def      = 100
++min      = 0
++max      = 1000
++interval = 5
++str      = STR_CONFIG_SETTING_CONSTRUCTION_PERCENT
++strhelp  = STR_CONFIG_SETTING_CONSTRUCTION_PERCENT_HELPTEXT
++strval   = STR_CONFIG_SETTING_PERCENTAGE
++cat      = SC_BASIC
++
  [SDT_VAR]
  var      = economy.feeder_payment_share
  type     = SLE_UINT8
-@@ -323,7 +362,7 @@ cat      = SC_BASIC
+@@ -323,7 +375,7 @@ cat      = SC_BASIC
  [SDT_VAR]
  var      = economy.minutes_per_calendar_year
  type     = SLE_UINT16

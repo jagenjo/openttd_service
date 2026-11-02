@@ -25,6 +25,14 @@
   #coMenu button { display:flex; align-items:center; gap:8px; width:100%; text-align:left; border:0; background:none; padding:5px 8px; }
   #coMenu button:hover { background:#2a3a50; } #coMenu button.danger { color:var(--bad); }
   li.save { gap:8px; padding:1px 0; } li.save .ib { height:20px; width:24px; } li.save .ib svg { width:12px; height:12px; } li.save .n { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } li.save .muted { white-space:nowrap; font-size:11px; }
+  .vars { display:flex; flex-direction:column; gap:3px; max-width:520px; }
+  .var { display:grid; grid-template-columns:minmax(150px,1fr) 110px 22px; gap:8px; align-items:center; }
+  .var .nm { font-size:12px; }
+  .help { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; border:1px solid var(--muted); color:var(--muted); font-size:11px; cursor:help; position:relative; user-select:none; }
+  .help:hover, .help:focus { color:var(--fg); border-color:var(--fg); outline:0; }
+  .help::after { content:attr(data-tip); display:none; position:absolute; right:-6px; bottom:22px; width:min(300px,70vw); padding:6px 8px; background:#0d141c; color:var(--fg); border:1px solid #3a4f69; border-radius:6px; font-size:11px; line-height:1.35; text-align:left; box-shadow:0 6px 20px #000a; z-index:30; white-space:normal; }
+  .help:hover::after, .help:focus::after { display:block; }
+  #calcOut td:last-child { text-align:right; font-family:var(--mono); } #calcOut tr.tot td { font-weight:700; border-top:1px solid #3a4f69; }
   a.ib { text-decoration:none; } a.ib:hover { background:#2a3a50; text-decoration:none; }
   .pill { padding:2px 9px; border-radius:99px; font-size:11px; font-weight:700; color:#fff; background:var(--muted); }
   .pill.on { background:var(--ok); } .pill.off { background:var(--bad); }
@@ -104,17 +112,36 @@
   <a class="ib" href="/" target="_blank" title="Página de inicio"><svg class="i"><use href="#i-home"/></svg></a>
 </header>
 <main>
-  <section class="wide">
+  <section class="wide2">
     <h2>Ritmo y economía <span class="muted" style="text-transform:none;letter-spacing:0">· se aplican también a la partida en marcha</span></h2>
-    <form id="paceForm" class="row" style="align-items:flex-end;gap:12px">
-      <label style="margin:0;width:230px">Minutos reales por año de juego <input name="minutes_per_calendar_year" type="number" min="1" max="10080"></label>
-      <label style="margin:0;width:330px">Factor económico: ingresos, intereses y desgaste de vehículos (1 = normal) <input name="money_factor" type="number" min="0.01" max="10" step="0.05"></label>
-      <label style="margin:0;width:200px">Velocidad de carga en estaciones (1 = normal) <input name="loading_factor" type="number" min="0.01" max="10" step="0.05"></label>
-      <label style="margin:0;width:200px">Costes de mantenimiento: vehículos e infraestructura (1 = normal) <input name="maintenance_factor" type="number" min="0" max="10" step="0.05"></label>
-      <label style="margin:0;width:200px">Acciones por día (0 = sin límite) <input name="actions_per_day" type="number" min="0" max="100000"></label>
-      <button class="primary">Aplicar</button>
-      <span class="muted" id="paceInfo"></span>
+    <div class="row" style="margin-bottom:8px">
+      <select id="presetSel" style="width:auto;flex:1;min-width:140px" title="Configuraciones guardadas"></select>
+      <button id="presetLoad" type="button" title="Aplicar la configuración elegida">Cargar</button>
+      <button id="presetDel" type="button" class="danger" title="Borrar la configuración elegida">Borrar</button>
+      <input id="presetName" placeholder="Nombre nuevo" maxlength="40" style="width:150px" autocomplete="off">
+      <button id="presetSave" type="button" title="Guardar los ajustes actuales con este nombre">Guardar como…</button>
+    </div>
+    <form id="paceForm" class="vars">
+      <div class="var"><span class="nm">Minutos reales por año de juego</span><input name="minutes_per_calendar_year" type="number" min="1" max="10080" step="1"><span class="help" tabindex="0" data-tip="Duración de un año del juego en minutos reales. 1440 = un año de juego por día real. Cuanto mayor, más lento pasa el tiempo (y menos se gana por día real). Rango 1–10080.">?</span></div>
+      <div class="var"><span class="nm">Factor de ingresos</span><input name="money_factor" type="number" min="0.01" max="10" step="0.01"><span class="help" tabindex="0" data-tip="Multiplica lo que se cobra por entregar carga, los intereses del préstamo y el desgaste (pérdida de fiabilidad) de los vehículos. 1 = normal, 0.5 = la mitad. Rango 0.01–10.">?</span></div>
+      <div class="var"><span class="nm">Velocidad de carga en estaciones</span><input name="loading_factor" type="number" min="0.01" max="10" step="0.01"><span class="help" tabindex="0" data-tip="Velocidad a la que los vehículos cargan y descargan en las estaciones. 1 = normal, 0.5 = el doble de lento (más tiempo parado, menos viajes). Rango 0.01–10.">?</span></div>
+      <div class="var"><span class="nm">Coste de mantenimiento</span><input name="maintenance_factor" type="number" min="0" max="100" step="0.01"><span class="help" tabindex="0" data-tip="Multiplica los costes de funcionamiento de todos los vehículos (trenes, camiones, aviones, barcos) y el mantenimiento de estaciones/infraestructura. Es independiente del factor de ingresos. 1 = normal, 0 = gratis. Rango 0–100.">?</span></div>
+      <div class="var"><span class="nm">Coste de construcción</span><input name="construction_factor" type="number" min="0" max="10" step="0.01"><span class="help" tabindex="0" data-tip="Multiplica el precio de construir vías, señales, puentes, túneles, carreteras, estaciones, aeropuertos y puertos. No afecta a vehículos, terreno ni árboles. 1 = normal, 0 = gratis. Rango 0–10.">?</span></div>
+      <div class="var"><span class="nm">Acciones por día</span><input name="actions_per_day" type="number" min="0" max="100000" step="1"><span class="help" tabindex="0" data-tip="Número de acciones de construcción/demolición que cada jugador puede hacer al día; se restablecen a las 0:00. 0 = sin límite. Rango 0–100000.">?</span></div>
+      <div class="row" style="margin-top:6px"><button class="primary">Aplicar</button><span class="muted" id="paceInfo"></span></div>
     </form>
+
+    <h3>Estimación de beneficio (transporte de carbón)</h3>
+    <div class="vars" id="calc">
+      <div class="var"><span class="nm">Distancia de la vía (casillas)</span><input id="cDist" type="number" min="1" max="2000" step="1" value="100"><span class="help" tabindex="0" data-tip="Distancia en casillas entre la estación de carga y la de descarga; la paga depende de ella. Se supone una vía de esa longitud.">?</span></div>
+      <div class="var"><span class="nm">Vagones por entrega</span><input id="cWagons" type="number" min="1" max="100" step="1" value="8"><span class="help" tabindex="0" data-tip="Vagones de carbón que el tren descarga en cada entrega.">?</span></div>
+      <div class="var"><span class="nm">Toneladas por vagón</span><input id="cCap" type="number" min="1" max="500" step="1" value="20"><span class="help" tabindex="0" data-tip="Capacidad de cada vagón de carbón (20 t el vagón original).">?</span></div>
+      <div class="var"><span class="nm">Minutos reales entre entregas</span><input id="cEvery" type="number" min="1" max="1440" step="1" value="5"><span class="help" tabindex="0" data-tip="Cada cuántos minutos reales llega un tren cargado y descarga.">?</span></div>
+      <div class="var"><span class="nm">Locomotoras en servicio</span><input id="cLocos" type="number" min="0" max="100" step="1" value="1"><span class="help" tabindex="0" data-tip="Locomotoras que pagan coste de funcionamiento. Se usa el de la locomotora de vapor de 1950 (unos 1.094 £ base al año). Los vagones originales no cuestan mantenimiento. Pon las que hagan falta para mantener esa frecuencia.">?</span></div>
+      <div class="var"><span class="nm">Estaciones</span><input id="cStations" type="number" min="0" max="100" step="1" value="2"><span class="help" tabindex="0" data-tip="Estaciones que pagan mantenimiento: 50 £ base al mes cada una (con el mantenimiento de infraestructura desactivado, que es lo normal).">?</span></div>
+    </div>
+    <table id="calcOut" style="margin-top:6px"></table>
+    <p class="muted" id="calcNote"></p>
   </section>
 
   <section>
@@ -209,6 +236,7 @@ let online = [];
 let mapTime = null;
 const COLOURS = { 'Dark Blue':'#22368c', 'Pale Green':'#88dc78', Pink:'#fa82be', Yellow:'#fadc28', Red:'#dc1e1e', 'Light Blue':'#5aaaf0', Green:'#1ea032', 'Dark Green':'#145a28', Blue:'#285adc', Cream:'#ebd7a0', Mauve:'#a0648c', Purple:'#8228aa', Orange:'#fa8c14', Brown:'#82501e', Grey:'#8c8c8c', White:'#fafafa' };
 let settingsLoaded = false;
+let lastSettings = {};
 
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.style.display = 'block';
@@ -274,9 +302,11 @@ function render() {
   $('#paceInfo').textContent = `1 año de juego = ${(m / 60).toFixed(1)} h reales · ingresos al ${Math.round(s.settings.money_factor * 100)} %`;
   renderMap(s.map);
 
+  lastSettings = s.settings;
   if (!settingsLoaded) {
     for (const el of [...$('#settings').elements, ...$('#paceForm').elements]) if (el.name) el.value = s.settings[el.name] ?? '';
     settingsLoaded = true;
+    calc();
   }
 }
 
@@ -412,13 +442,98 @@ $('#addUser').onsubmit = (e) => {
 };
 $('#paceForm').onsubmit = (e) => {
   e.preventDefault();
+  for (const el of e.target.querySelectorAll('input[type=number]')) clampInput(el);
   post('/api/settings', Object.fromEntries(new FormData(e.target))).then(() => { toast('Aplicado'); settingsLoaded = false; refresh(); });
 };
 $('#settings').onsubmit = (e) => {
   e.preventDefault();
+  for (const el of e.target.querySelectorAll('input[type=number]')) if (!(el.name === 'seed' && el.value === '')) clampInput(el);
   const data = Object.fromEntries(new FormData(e.target));
   post('/api/settings', data).then(() => { toast('Configuración guardada'); settingsLoaded = false; refresh(); });
 };
+// Un número no válido se ajusta al válido más cercano (dentro de min/max y con los decimales del paso).
+function clampInput(el) {
+  const min = el.min === '' ? -Infinity : Number(el.min), max = el.max === '' ? Infinity : Number(el.max);
+  const step = el.step && el.step !== 'any' ? Number(el.step) : 1;
+  const dec = (String(step).split('.')[1] || '').length;
+  let v = parseFloat(String(el.value).replace(',', '.'));
+  if (!Number.isFinite(v)) {
+    if (el.name === 'seed') { el.value = ''; return; }
+    const old = lastSettings[el.name];
+    v = old !== undefined && old !== null && old !== '' ? Number(old) : (min > -Infinity ? min : 0);
+  }
+  v = Math.min(max, Math.max(min, v));
+  el.value = String(Number(v.toFixed(dec)));
+}
+document.addEventListener('change', (e) => {
+  if (e.target.matches('input[type=number]') && !(e.target.name === 'seed' && e.target.value === '')) { clampInput(e.target); calc(); }
+});
+
+// Configuraciones con nombre.
+async function loadPresets(select) {
+  const r = await fetch('/api/presets', { cache: 'no-store' });
+  const { presets } = await r.json();
+  $('#presetSel').innerHTML = presets.length ? presets.map((n) => `<option ${n === select ? 'selected' : ''}>${esc(n)}</option>`).join('') : '<option value="">(ninguna guardada)</option>';
+}
+$('#presetSave').onclick = async () => {
+  const name = $('#presetName').value.trim();
+  if (!name) return toast('Escribe un nombre');
+  // Se guarda lo que hay en el formulario: primero se aplican los valores y luego se archivan.
+  const form = Object.fromEntries(new FormData($('#paceForm')));
+  await post('/api/settings', form);
+  const r = await post('/api/presets', { name });
+  $('#presetName').value = '';
+  toast(`Configuración «${r.name}» guardada`);
+  loadPresets(r.name);
+};
+$('#presetLoad').onclick = async () => {
+  const name = $('#presetSel').value;
+  if (!name) return;
+  await post('/api/presets/load', { name });
+  toast(`Configuración «${name}» aplicada`); settingsLoaded = false; refresh();
+};
+$('#presetDel').onclick = async () => {
+  const name = $('#presetSel').value;
+  if (name && confirm(`¿Borrar la configuración «${name}»?`)) { await post('/api/presets/delete', { name }); toast('Borrada'); loadPresets(); }
+};
+loadPresets();
+
+// Estimación de beneficio con los valores del formulario (aunque aún no estén aplicados).
+function calc() {
+  const num = (sel, d) => { const v = parseFloat($(sel).value); return Number.isFinite(v) ? v : d; };
+  const f = (n) => parseFloat($('#paceForm').elements[n].value);
+  const mf = Math.round((Number.isFinite(f('money_factor')) ? f('money_factor') : 1) * 100) / 100;
+  const mt = Math.round((Number.isFinite(f('maintenance_factor')) ? f('maintenance_factor') : 1) * 100) / 100;
+  const cf = Math.round((Number.isFinite(f('construction_factor')) ? f('construction_factor') : 1) * 100) / 100;
+  const min = Number.isFinite(f('minutes_per_calendar_year')) && f('minutes_per_calendar_year') > 0 ? f('minutes_per_calendar_year') : 1440;
+  const dist = num('#cDist', 100), wagons = num('#cWagons', 8), cap = num('#cCap', 20), every = Math.max(1, num('#cEvery', 5));
+  const locos = num('#cLocos', 1), stations = num('#cStations', 2);
+  const COAL = 5916, TIME = 255; // pago base del carbón y factor de tiempo máximo (entrega rápida)
+  const perTrip = Math.floor(dist * TIME * (wagons * cap) * COAL / 2097152); // libras base de OpenTTD
+  const trips = 1440 / every;
+  const revenue = Math.floor(perTrip * Math.round(mf * 100) / 100) * trips;
+  const yearsPerDay = 1440 / min; // años de juego por día real
+  const running = 5600 * 50 / 256 * locos * mt * yearsPerDay; // locomotora de vapor de 1950
+  const stationsCost = 50 * 12 * stations * mt * yearsPerDay;
+  const profit = revenue - running - stationsCost;
+  const track = dist * 100 * cf; // 100 £ base por casilla de vía llana, sin terreno ni estaciones
+  const e = (n) => (n < 0 ? '−€' : '€') + Math.abs(Math.round(n * RATE)).toLocaleString('es-ES');
+  const rows = [
+    [`Ingreso por entrega (${wagons * cap} t a ${dist} casillas)`, e(Math.floor(perTrip * mf))],
+    [`Entregas por día real (cada ${every} min)`, trips.toLocaleString('es-ES', { maximumFractionDigits: 1 })],
+    ['Ingresos por día real', e(revenue)],
+    [`Funcionamiento de ${locos} locomotora(s) por día real`, '−' + e(running).replace('−', '')],
+    [`Mantenimiento de ${stations} estación(es) por día real`, '−' + e(stationsCost).replace('−', '')],
+  ];
+  $('#calcOut').innerHTML = rows.map((r) => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')
+    + `<tr class="tot"><td>Beneficio por día real</td><td style="color:var(${profit >= 0 ? '--ok' : '--bad'})">${e(profit)}</td></tr>`
+    + `<tr><td>Coste de construir la vía (sin terreno ni estaciones)</td><td>${e(track)}</td></tr>`
+    + `<tr><td>Días reales para amortizar la vía</td><td>${profit > 0 ? (track / profit).toLocaleString('es-ES', { maximumFractionDigits: 3 }) : '—'}</td></tr>`;
+  $('#calcNote').textContent = `Estimación con el carbón (5916 £ base/t·casilla, entrega rápida), factores de ingresos ×${mf}, mantenimiento ×${mt}, construcción ×${cf}, y 1 año de juego = ${(min / 60).toFixed(1)} h reales. Sin inflación; una entrega lenta o la reparación en cocheras bajan algo el resultado.`;
+}
+document.addEventListener('input', (e) => { if (e.target.closest('#paceForm, #calc')) calc(); });
+calc();
+
 $('#cmdForm').onsubmit = (e) => {
   e.preventDefault();
   const command = $('#cmd').value.trim();
