@@ -10,12 +10,13 @@ diff --git a/src/company_cmd.cpp b/src/company_cmd.cpp
  {
  	if (cost.GetCost() == 0) return;
  	assert(cost.GetExpensesType() != INVALID_EXPENSES);
-@@ -307,6 +307,33 @@
+@@ -307,6 +307,35 @@
  }
  
  /**
-+ * openttd-service: running costs, infrastructure maintenance and loan interest follow the
-+ * same percentage as the cargo income (economy.income_percent).
++ * openttd-service: vehicle running costs and infrastructure maintenance follow their own
++ * percentage (economy.maintenance_percent); loan interest follows the cargo income
++ * percentage (economy.income_percent).
 + * @param type Expenses type of the payment.
 + * @param cost Original amount.
 + * @return Scaled amount.
@@ -28,6 +29,7 @@ diff --git a/src/company_cmd.cpp b/src/company_cmd.cpp
 +		case EXPENSES_AIRCRAFT_RUN:
 +		case EXPENSES_SHIP_RUN:
 +		case EXPENSES_PROPERTY:
++			return cost * _settings_game.economy.maintenance_percent / 100;
 +		case EXPENSES_LOAN_INTEREST:
 +			return cost * _settings_game.economy.income_percent / 100;
 +		default:
@@ -44,7 +46,7 @@ diff --git a/src/company_cmd.cpp b/src/company_cmd.cpp
   * Subtract money from the #_current_company, if the company is valid.
   * @param cost Money to pay.
   */
-@@ -325,12 +352,12 @@
+@@ -325,12 +354,12 @@
  {
  	Company *c = Company::Get(company);
  	uint8_t m = c->money_fraction;

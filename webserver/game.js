@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS = {
   ...Object.fromEntries(Object.entries(MAPGEN).map(([k, v]) => [k, v[4]])),
   seed: null, // null = aleatoria
   money_factor: 0.5, // multiplicador de los ingresos por carga (1 = normal)
+  maintenance_factor: 1, // costes de mantenimiento: funcionamiento de vehículos e infraestructura, independiente del factor económico (1 = normal)
   loading_factor: 1, // velocidad de carga y descarga en estaciones (1 = normal, 0.5 = el doble de lento)
   server_name: 'OpenTTD Slow Time',
   server_password: '',
@@ -95,6 +96,8 @@ export class Game extends EventEmitter {
     s.money_factor = Number.isFinite(f) ? Math.min(10, Math.max(0.01, Math.round(f * 100) / 100)) : 0.5;
     const lf = Number(s.loading_factor);
     s.loading_factor = Number.isFinite(lf) ? Math.min(10, Math.max(0.01, Math.round(lf * 100) / 100)) : 1;
+    const tf = Number(s.maintenance_factor);
+    s.maintenance_factor = Number.isFinite(tf) ? Math.min(10, Math.max(0, Math.round(tf * 100) / 100)) : 1;
     // Semilla: vacía o 0 = aleatoria.
     s.seed = s.seed === '' || s.seed == null || Number(s.seed) <= 0 ? null : Math.min(4294967294, Math.floor(Number(s.seed)));
     s.max_companies = Math.min(15, Math.max(1, s.max_companies | 0));
@@ -102,9 +105,10 @@ export class Game extends EventEmitter {
     const oldMax = this.settings.actions_per_day;
     const oldFactor = this.settings.money_factor;
     const oldLoading = this.settings.loading_factor;
+    const oldTrain = this.settings.maintenance_factor;
     const oldMinutes = this.settings.minutes_per_calendar_year;
     this.settings = s;
-    if (s.money_factor !== oldFactor || s.loading_factor !== oldLoading || s.minutes_per_calendar_year !== oldMinutes) this.moneySynced = false; // se aplica a la partida en marcha
+    if (s.money_factor !== oldFactor || s.loading_factor !== oldLoading || s.maintenance_factor !== oldTrain || s.minutes_per_calendar_year !== oldMinutes) this.moneySynced = false; // se aplica a la partida en marcha
     if (s.actions_per_day !== oldMax) {
       this.players.adjustActions(oldMax, s.actions_per_day);
       this.actionsSynced = false; // se vuelve a dar a cada empresa su valor en la próxima pasada
@@ -126,7 +130,7 @@ export class Game extends EventEmitter {
       landscape: s.landscape,
     };
     cfg.network = { ...cfg.network, max_companies: s.max_companies };
-    cfg.economy = { ...cfg.economy, income_percent: this.incomePercent, loading_percent: this.loadingPercent };
+    cfg.economy = { ...cfg.economy, income_percent: this.incomePercent, loading_percent: this.loadingPercent, maintenance_percent: this.maintenancePercent };
     for (const [k, [section, name]] of Object.entries(MAPGEN)) cfg[section] = { ...cfg[section], [name]: s[k] };
     fs.writeFileSync(path.join(this.dataDir, 'openttd.cfg'), stringifyIni(cfg));
     fs.writeFileSync(path.join(this.dataDir, 'private.cfg'), stringifyIni({ network: { server_name: s.server_name } }));
@@ -135,6 +139,10 @@ export class Game extends EventEmitter {
 
   // Ingresos por carga, en % (50 = la mitad). Es un ajuste de la partida: va en la partida
   // guardada y el servidor lo propaga a los clientes, así que todos calculan lo mismo.
+  get maintenancePercent() {
+    return Math.min(1000, Math.max(0, Math.round(this.settings.maintenance_factor * 100)));
+  }
+
   get loadingPercent() {
     return Math.min(1000, Math.max(1, Math.round(this.settings.loading_factor * 100)));
   }
@@ -469,6 +477,7 @@ export class Game extends EventEmitter {
     const pct = this.incomePercent;
     await this.command(`setting income_percent ${pct}`);
     await this.command(`setting loading_percent ${this.loadingPercent}`);
+    await this.command(`setting maintenance_percent ${this.maintenancePercent}`);
     await this.command('setting currency 2'); // euro: los clientes toman la moneda de la partida que envía el servidor
     // El ritmo del calendario también se puede cambiar con la partida en marcha.
     await this.command(`setting minutes_per_calendar_year ${this.settings.minutes_per_calendar_year}`);
