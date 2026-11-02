@@ -26,8 +26,9 @@
   #coMenu button:hover { background:#2a3a50; } #coMenu button.danger { color:var(--bad); }
   li.save { gap:8px; padding:1px 0; } li.save .ib { height:20px; width:24px; } li.save .ib svg { width:12px; height:12px; } li.save .n { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } li.save .muted { white-space:nowrap; font-size:11px; }
   .vars { display:flex; flex-direction:column; gap:3px; max-width:520px; }
-  .var { display:grid; grid-template-columns:minmax(150px,1fr) 110px 22px; gap:8px; align-items:center; }
+  .var { display:grid; grid-template-columns:240px 110px 22px minmax(0,auto); gap:8px; align-items:center; }
   .var .nm { font-size:12px; }
+  .note { font-size:11px; color:var(--muted); white-space:nowrap; } .note b { color:var(--fg); } .note.use { cursor:pointer; text-decoration:underline dotted; }
   .help { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; border:1px solid var(--muted); color:var(--muted); font-size:11px; cursor:help; position:relative; user-select:none; }
   .help:hover, .help:focus { color:var(--fg); border-color:var(--fg); outline:0; }
   .help::after { content:attr(data-tip); display:none; position:absolute; right:-6px; bottom:22px; width:min(300px,70vw); padding:6px 8px; background:#0d141c; color:var(--fg); border:1px solid #3a4f69; border-radius:6px; font-size:11px; line-height:1.35; text-align:left; box-shadow:0 6px 20px #000a; z-index:30; white-space:normal; }
@@ -122,10 +123,11 @@
       <button id="presetSave" type="button" title="Guardar los ajustes actuales con este nombre">Guardar como…</button>
     </div>
     <form id="paceForm" class="vars">
-      <div class="var"><span class="nm">Minutos reales por año de juego</span><input name="minutes_per_calendar_year" type="number" min="1" max="10080" step="1"><span class="help" tabindex="0" data-tip="Duración de un año del juego en minutos reales. 1440 = un año de juego por día real. Cuanto mayor, más lento pasa el tiempo (y menos se gana por día real). Rango 1–10080.">?</span></div>
-      <div class="var"><span class="nm">Factor de ingresos</span><input name="money_factor" type="number" min="0.01" max="10" step="0.01"><span class="help" tabindex="0" data-tip="Multiplica lo que se cobra por entregar carga, los intereses del préstamo y el desgaste (pérdida de fiabilidad) de los vehículos. 1 = normal, 0.5 = la mitad. Rango 0.01–10.">?</span></div>
+      <div class="var"><span class="nm">Minutos reales por año de juego</span><input name="minutes_per_calendar_year" type="number" min="1" max="10080" step="1"><span class="help" tabindex="0" data-tip="Duración de un año del juego en minutos reales. 1440 = un año de juego por día real. Cuanto mayor, más lento pasa el tiempo (y menos se gana por día real). Rango 1–10080.">?</span><span class="note" id="noteMin"></span></div>
+      <div class="var"><span class="nm">Factor de ingresos</span><input name="money_factor" type="number" min="0.01" max="10" step="0.01"><span class="help" tabindex="0" data-tip="Multiplica lo que se cobra por entregar carga y los intereses del préstamo. 1 = normal, 0.5 = la mitad. Rango 0.01–10.">?</span></div>
       <div class="var"><span class="nm">Velocidad de carga en estaciones</span><input name="loading_factor" type="number" min="0.01" max="10" step="0.01"><span class="help" tabindex="0" data-tip="Velocidad a la que los vehículos cargan y descargan en las estaciones. 1 = normal, 0.5 = el doble de lento (más tiempo parado, menos viajes). Rango 0.01–10.">?</span></div>
-      <div class="var"><span class="nm">Coste de mantenimiento</span><input name="maintenance_factor" type="number" min="0" max="100" step="0.01"><span class="help" tabindex="0" data-tip="Multiplica los costes de funcionamiento de todos los vehículos (trenes, camiones, aviones, barcos) y el mantenimiento de estaciones/infraestructura. Es independiente del factor de ingresos. 1 = normal, 0 = gratis. Rango 0–100.">?</span></div>
+      <div class="var"><span class="nm">Desgaste de los vehículos</span><input name="wear_factor" type="number" min="0" max="100" step="0.01"><span class="help" tabindex="0" data-tip="Ritmo al que los vehículos pierden fiabilidad entre revisiones (más averías cuanto menos fiables). 1 = normal, 0.5 = la mitad de rápido, 0 = no se desgastan. Independiente del resto de factores. Rango 0–100.">?</span></div>
+      <div class="var"><span class="nm">Coste de mantenimiento</span><input name="maintenance_factor" type="number" min="0" max="500" step="0.01"><span class="help" tabindex="0" data-tip="Multiplica los costes de funcionamiento de todos los vehículos (trenes, camiones, aviones, barcos) y el mantenimiento de estaciones/infraestructura. Es independiente del factor de ingresos. 1 = normal, 0 = gratis. Rango 0–500.">?</span><span class="note" id="noteMaint"></span></div>
       <div class="var"><span class="nm">Coste de construcción</span><input name="construction_factor" type="number" min="0" max="10" step="0.01"><span class="help" tabindex="0" data-tip="Multiplica el precio de construir vías, señales, puentes, túneles, carreteras, estaciones, aeropuertos y puertos. No afecta a vehículos, terreno ni árboles. 1 = normal, 0 = gratis. Rango 0–10.">?</span></div>
       <div class="var"><span class="nm">Acciones por día</span><input name="actions_per_day" type="number" min="0" max="100000" step="1"><span class="help" tabindex="0" data-tip="Número de acciones de construcción/demolición que cada jugador puede hacer al día; se restablecen a las 0:00. 0 = sin límite. Rango 0–100000.">?</span></div>
       <div class="row" style="margin-top:6px"><button class="primary">Aplicar</button><span class="muted" id="paceInfo"></span></div>
@@ -512,9 +514,11 @@ function calc() {
   const perTrip = Math.floor(dist * TIME * (wagons * cap) * COAL / 2097152); // libras base de OpenTTD
   const trips = 1440 / every;
   const revenue = Math.floor(perTrip * Math.round(mf * 100) / 100) * trips;
-  const yearsPerDay = 1440 / min; // años de juego por día real
-  const running = 5600 * 50 / 256 * locos * mt * yearsPerDay; // locomotora de vapor de 1950
-  const stationsCost = 50 * 12 * stations * mt * yearsPerDay;
+  // Los costes (funcionamiento y mantenimiento mensual) corren con el reloj de la economía, no con el calendario:
+  // un año económico dura 12,15 min reales (365 días de 74 ticks de 27 ms) y un mes 1 min.
+  const vanilla = min / 12; // el calendario va tantas veces más lento que el juego original (12 min por año)
+  const running = 5600 * 50 / 256 * locos * mt * (1440 / 12.15); // locomotora de vapor de 1950
+  const stationsCost = 50 * 12 * stations * mt * (1440 / 12);
   const profit = revenue - running - stationsCost;
   const track = dist * 100 * cf; // 100 £ base por casilla de vía llana, sin terreno ni estaciones
   const e = (n) => (n < 0 ? '−€' : '€') + Math.abs(Math.round(n * RATE)).toLocaleString('es-ES');
@@ -529,8 +533,15 @@ function calc() {
     + `<tr class="tot"><td>Beneficio por día real</td><td style="color:var(${profit >= 0 ? '--ok' : '--bad'})">${e(profit)}</td></tr>`
     + `<tr><td>Coste de construir la vía (sin terreno ni estaciones)</td><td>${e(track)}</td></tr>`
     + `<tr><td>Días reales para amortizar la vía</td><td>${profit > 0 ? (track / profit).toLocaleString('es-ES', { maximumFractionDigits: 3 }) : '—'}</td></tr>`;
-  $('#calcNote').textContent = `Estimación con el carbón (5916 £ base/t·casilla, entrega rápida), factores de ingresos ×${mf}, mantenimiento ×${mt}, construcción ×${cf}, y 1 año de juego = ${(min / 60).toFixed(1)} h reales. Sin inflación; una entrega lenta o la reparación en cocheras bajan algo el resultado.`;
+  $('#noteMin').innerHTML = `<b>×${vanilla.toLocaleString('es-ES', { maximumFractionDigits: 1 })}</b> más lento que el original (12 min/año)`;
+  const need = Math.round(vanilla * 100) / 100;
+  $('#noteMaint').className = 'note use';
+  $('#noteMaint').title = 'Pulsa para usar este valor';
+  $('#noteMaint').innerHTML = `para igualar el coste por mes del original: <b>×${need.toLocaleString('es-ES', { maximumFractionDigits: 2 })}</b>`;
+  $('#noteMaint').dataset.v = Math.min(500, need);
+  $('#calcNote').textContent = `Estimación con el carbón (5916 £ base/t·casilla, entrega rápida), factores de ingresos ×${mf}, mantenimiento ×${mt}, construcción ×${cf}, y calendario ×${vanilla.toFixed(1)} más lento que el original. Los costes siguen el reloj de la economía (año = 12 min reales), no el calendario. Sin inflación; una entrega lenta o la reparación en cocheras bajan algo el resultado.`;
 }
+document.addEventListener('click', (e) => { const n = e.target.closest('#noteMaint'); if (n) { $('#paceForm').elements.maintenance_factor.value = n.dataset.v; calc(); } });
 document.addEventListener('input', (e) => { if (e.target.closest('#paceForm, #calc')) calc(); });
 calc();
 

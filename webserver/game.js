@@ -30,6 +30,7 @@ export const DEFAULT_SETTINGS = {
   maintenance_factor: 1, // costes de mantenimiento: funcionamiento de vehículos e infraestructura, independiente del factor económico (1 = normal)
   construction_factor: 1, // coste de construir vías, carreteras y estaciones (1 = normal)
   construction_factor: 1, // coste de construir vías, carreteras y estaciones (1 = normal)
+  wear_factor: 1, // desgaste (pérdida de fiabilidad) de los vehículos (1 = normal)
   loading_factor: 1, // velocidad de carga y descarga en estaciones (1 = normal, 0.5 = el doble de lento)
   server_name: 'OpenTTD Slow Time',
   server_password: '',
@@ -104,7 +105,8 @@ export class Game extends EventEmitter {
     };
     s.money_factor = nearest(s.money_factor, this.settings.money_factor, 0.01, 10);
     s.loading_factor = nearest(s.loading_factor, this.settings.loading_factor, 0.01, 10);
-    s.maintenance_factor = nearest(s.maintenance_factor, this.settings.maintenance_factor, 0, 100);
+    s.wear_factor = nearest(s.wear_factor, this.settings.wear_factor, 0, 100);
+    s.maintenance_factor = nearest(s.maintenance_factor, this.settings.maintenance_factor, 0, 500);
     s.construction_factor = nearest(s.construction_factor, this.settings.construction_factor, 0, 10);
     // Semilla: vacía o 0 = aleatoria.
     s.seed = s.seed === '' || s.seed == null || Number(s.seed) <= 0 ? null : Math.min(4294967294, Math.floor(Number(s.seed)));
@@ -115,9 +117,10 @@ export class Game extends EventEmitter {
     const oldLoading = this.settings.loading_factor;
     const oldTrain = this.settings.maintenance_factor;
     const oldBuild = this.settings.construction_factor;
+    const oldWear = this.settings.wear_factor;
     const oldMinutes = this.settings.minutes_per_calendar_year;
     this.settings = s;
-    if (s.money_factor !== oldFactor || s.loading_factor !== oldLoading || s.maintenance_factor !== oldTrain || s.construction_factor !== oldBuild || s.minutes_per_calendar_year !== oldMinutes) this.moneySynced = false; // se aplica a la partida en marcha
+    if (s.money_factor !== oldFactor || s.loading_factor !== oldLoading || s.maintenance_factor !== oldTrain || s.construction_factor !== oldBuild || s.wear_factor !== oldWear || s.minutes_per_calendar_year !== oldMinutes) this.moneySynced = false; // se aplica a la partida en marcha
     if (s.actions_per_day !== oldMax) {
       this.players.adjustActions(oldMax, s.actions_per_day);
       this.actionsSynced = false; // se vuelve a dar a cada empresa su valor en la próxima pasada
@@ -174,7 +177,7 @@ export class Game extends EventEmitter {
       landscape: s.landscape,
     };
     cfg.network = { ...cfg.network, max_companies: s.max_companies };
-    cfg.economy = { ...cfg.economy, income_percent: this.incomePercent, loading_percent: this.loadingPercent, maintenance_percent: this.maintenancePercent, construction_percent: this.constructionPercent };
+    cfg.economy = { ...cfg.economy, income_percent: this.incomePercent, loading_percent: this.loadingPercent, maintenance_percent: this.maintenancePercent, construction_percent: this.constructionPercent, wear_percent: this.wearPercent };
     for (const [k, [section, name]] of Object.entries(MAPGEN)) cfg[section] = { ...cfg[section], [name]: s[k] };
     fs.writeFileSync(path.join(this.dataDir, 'openttd.cfg'), stringifyIni(cfg));
     fs.writeFileSync(path.join(this.dataDir, 'private.cfg'), stringifyIni({ network: { server_name: s.server_name } }));
@@ -183,12 +186,16 @@ export class Game extends EventEmitter {
 
   // Ingresos por carga, en % (50 = la mitad). Es un ajuste de la partida: va en la partida
   // guardada y el servidor lo propaga a los clientes, así que todos calculan lo mismo.
+  get wearPercent() {
+    return Math.min(10000, Math.max(0, Math.round(this.settings.wear_factor * 100)));
+  }
+
   get constructionPercent() {
     return Math.min(1000, Math.max(0, Math.round(this.settings.construction_factor * 100)));
   }
 
   get maintenancePercent() {
-    return Math.min(10000, Math.max(0, Math.round(this.settings.maintenance_factor * 100)));
+    return Math.min(50000, Math.max(0, Math.round(this.settings.maintenance_factor * 100)));
   }
 
   get loadingPercent() {
@@ -527,6 +534,7 @@ export class Game extends EventEmitter {
     await this.command(`setting loading_percent ${this.loadingPercent}`);
     await this.command(`setting maintenance_percent ${this.maintenancePercent}`);
     await this.command(`setting construction_percent ${this.constructionPercent}`);
+    await this.command(`setting wear_percent ${this.wearPercent}`);
     await this.command('setting currency 2'); // euro: los clientes toman la moneda de la partida que envía el servidor
     // El ritmo del calendario también se puede cambiar con la partida en marcha.
     await this.command(`setting minutes_per_calendar_year ${this.settings.minutes_per_calendar_year}`);
