@@ -26,9 +26,10 @@
   #coMenu button:hover { background:#2a3a50; } #coMenu button.danger { color:var(--bad); }
   li.save { gap:8px; padding:1px 0; } li.save .ib { height:20px; width:24px; } li.save .ib svg { width:12px; height:12px; } li.save .n { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } li.save .muted { white-space:nowrap; font-size:11px; }
   .vars { display:flex; flex-direction:column; gap:3px; max-width:520px; }
-  .var { display:grid; grid-template-columns:240px 110px 22px minmax(0,auto); gap:8px; align-items:center; }
+  .var { display:grid; grid-template-columns:240px 150px 22px minmax(0,auto); gap:8px; align-items:center; }
   .var .nm { font-size:12px; }
   .note { font-size:11px; color:var(--muted); white-space:nowrap; } .note b { color:var(--fg); } .note.use { cursor:pointer; text-decoration:underline dotted; }
+  .stp { display:flex; gap:2px; } .stp input { text-align:center; padding:4px 2px; -moz-appearance:textfield; min-width:0; } .stp input::-webkit-outer-spin-button, .stp input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; } .stp button { padding:0 8px; font-weight:700; line-height:1; }
   .help { display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; border:1px solid var(--muted); color:var(--muted); font-size:11px; cursor:help; position:relative; user-select:none; }
   .help:hover, .help:focus { color:var(--fg); border-color:var(--fg); outline:0; }
   .help::after { content:attr(data-tip); display:none; position:absolute; right:-6px; bottom:22px; width:min(300px,70vw); padding:6px 8px; background:#0d141c; color:var(--fg); border:1px solid #3a4f69; border-radius:6px; font-size:11px; line-height:1.35; text-align:left; box-shadow:0 6px 20px #000a; z-index:30; white-space:normal; }
@@ -470,6 +471,27 @@ function clampInput(el) {
 document.addEventListener('change', (e) => {
   if (e.target.matches('input[type=number]') && !(e.target.name === 'seed' && e.target.value === '')) { clampInput(e.target); calc(); }
 });
+
+// Botones − y + junto a cada valor de «Ritmo y economía», con pasos pequeños.
+const STEPS = { minutes_per_calendar_year: 10, money_factor: 0.05, loading_factor: 0.05, wear_factor: 0.05, maintenance_factor: 0.5, construction_factor: 0.05, actions_per_day: 5 };
+for (const input of document.querySelectorAll('#paceForm .var input')) {
+  const inc = STEPS[input.name] || 1;
+  const wrap = document.createElement('div');
+  wrap.className = 'stp';
+  input.replaceWith(wrap);
+  const mk = (txt, dir, title) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = txt; b.title = `${title} ${inc}`;
+    b.onclick = () => {
+      const v = parseFloat(input.value);
+      input.value = String((Number.isFinite(v) ? v : Number(lastSettings[input.name]) || 0) + dir * inc);
+      clampInput(input);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+    return b;
+  };
+  wrap.append(mk('−', -1, 'Reducir'), input, mk('+', 1, 'Aumentar'));
+}
 
 // Configuraciones con nombre.
 async function loadPresets(select) {
